@@ -811,6 +811,10 @@
         let confirmDeleteId = null;
         let cashflowChartInstance = null;
         let categoryChartInstance = null;
+        let cloudAccountsCache = [];
+        let cloudReady = false;
+        let cloudUnsubscribe = null;
+        let cloudSaveTimer = null;
 
         function toTitleCase(str) {
             return String(str || '')
@@ -1026,6 +1030,7 @@
             localStorage.setItem(STORAGE_ACTIVE_KEY, matchedMeta.id);
             localStorage.setItem(STORAGE_LOGGED_IN_KEY, 'true');
             loadAccountState(matchedMeta.id);
+            subscribeToCloudAccount(matchedMeta.id);
             hideAuthGate();
             refreshAllViews();
             showToast(`Masuk sebagai ${state.profileName}`);
@@ -1033,94 +1038,46 @@
 
         function logoutCurrentAccount() {
             saveState();
+            scheduleCloudAccountSync();
             localStorage.setItem(STORAGE_LOGGED_IN_KEY, 'false');
-            closeAccountModal();
-            showAuthGate('login');
-        }
-
-        function initAccountSession() {
-            const accounts = loadAccountsIndex();
-            const savedActive = localStorage.getItem(STORAGE_ACTIVE_KEY);
-            const isLoggedIn = localStorage.getItem(STORAGE_LOGGED_IN_KEY) === 'true';
-
-            // Jika belum punya akun sama sekali, wajib daftar/masuk terlebih dahulu
-            if (!accounts.length) {
-                state = createDefaultAccountState('Pengguna');
-                applyThemeMode('light');
-                showAuthGate('register', 'Belum ada akun terdaftar. Silakan daftar akun terlebih dahulu.');
-                return;
-            }
-
-            // Jika sudah punya akun dan status sesi sudah masuk, langsung buka data akun tanpa login ulang
-            if (isLoggedIn && savedActive && accounts.some(a => a.id === savedActive)) {
-                activeAccountId = savedActive;
-                loadAccountState(activeAccountId);
-                hideAuthGate();
-                return;
-            }
-
-            // Jika punya akun namun belum masuk / baru keluar akun, tampilkan form masuk akun
-            activeAccountId = savedActive && accounts.some(a => a.id === savedActive) ? savedActive : accounts[0].id;
-            loadAccountState(activeAccountId);
-            showAuthGate('login');
-        }
-
-        // Logo SVG Kustom untuk Setiap Aplikasi
-        function getWalletLogoSvg(walletId, sizeClass = 'w-8 h-8') {
-            switch (walletId) {
-                case 'dana':
-                    return `<div class="${sizeClass} rounded-xl bg-sky-500 flex items-center justify-center shrink-0 shadow-xs">
-                        <svg viewBox="0 0 32 32" class="w-5 h-5" fill="none">
-                            <circle cx="16" cy="16" r="10.5" fill="#FFFFFF"/>
-                            <path d="M10.5 13.5C12.8 15 15.2 12.2 18 12.5C19.6 12.7 20.7 13.4 21.5 14V18.8C19.4 17.4 17.1 20.1 14.2 19.8C12.6 19.6 11.4 18.9 10.5 18.2V13.5Z" fill="#0EA5E9"/>
-                        </svg>
-                    </div>`;
-                case 'seabank':
-                    return `<div class="${sizeClass} rounded-xl bg-white border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0">
-                        <svg viewBox="0 0 32 32" class="w-6 h-6" fill="none">
-                            <circle cx="16" cy="14" r="9" fill="#EA580C"/>
-                            <path d="M18.2 11.3C17.2 10.7 15.2 10.6 14.5 11.7C13.9 12.7 14.8 13.6 16.4 14.1C18.2 14.6 19.2 15.6 18.6 17.1C18 18.5 15.6 18.8 13.6 17.7" stroke="#FFFFFF" stroke-width="2.1" stroke-linecap="round"/>
-                            <path d="M7.5 23.5C10.5 21.5 14 23.8 17.5 23.2C20.5 22.7 22.5 21.3 24.5 21.5" stroke="#2563EB" stroke-width="2.3" stroke-linecap="round"/>
-                        </svg>
-                    </div>`;
-                case 'brimo':
-                    return `<div class="${sizeClass} rounded-xl bg-blue-700 flex items-center justify-center shrink-0">
-                        <span class="font-display font-extrabold text-[10px] leading-none text-white tracking-tight">BRI<span class="text-orange-400">mo</span></span>
-                    </div>`;
-                case 'bsi':
-                    return `<div class="${sizeClass} rounded-xl bg-white border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0">
-                        <span class="font-display font-extrabold text-[11px] text-teal-700">BSI</span>
-                    </div>`;
-                case 'jago':
-                    return `<div class="${sizeClass} rounded-xl bg-amber-400 flex items-center justify-center shrink-0">
-                        <span class="font-display font-extrabold text-[11px] text-stone-900">Jago</span>
-                    </div>`;
-                case 'gopay':
-                    return `<div class="${sizeClass} rounded-xl bg-sky-500 flex items-center justify-center shrink-0">
-                        <svg viewBox="0 0 32 32" class="w-5 h-5" fill="none">
-                            <path d="M8.5 12.5C8.5 10.3 10.3 9 13.2 9H19.5C21.7 9 23.2 10.4 23.2 12.6V13.8H12.2C11.3 13.8 10.8 14.3 10.8 15C10.8 15.7 11.4 16.2 12.4 16.2H21.2C23.5 16.2 25 17.7 25 20V21.5C25 23.4 23.4 24.8 21.2 24.8H11.5C9.4 24.8 8 23.4 8 21.4V20H20.8C21.6 20 22.1 19.5 22.1 18.8C22.1 18.1 21.5 17.6 20.5 17.6H11.8C9.7 17.6 8.5 16.2 8.5 14.3V12.5Z" fill="#FFFFFF"/>
-                            <circle cx="19.5" cy="20.6" r="1.4" fill="#0EA5E9"/>
-                        </svg>
-                    </div>`;
-                case 'ovo':
-                    return `<div class="${sizeClass} rounded-xl bg-purple-600 flex items-center justify-center shrink-0">
-                        <span class="font-display font-extrabold text-[11px] tracking-wider text-white">ovo</span>
-                    </div>`;
-                default:
-                    return `<div class="${sizeClass} rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
-                        <i data-lucide="banknote" class="w-4 h-4"></i>
-                    </div>`;
-            }
+            showAuthGate('login', 'Anda telah keluar dari akun.');
         }
 
         function loadAccountsIndex() {
+            const merged = new Map();
+
             try {
                 const raw = localStorage.getItem(STORAGE_INDEX_KEY);
-                const parsed = raw ? JSON.parse(raw) : [];
-                return Array.isArray(parsed) ? parsed : [];
+                const localList = raw ? JSON.parse(raw) : [];
+                if (Array.isArray(localList)) {
+                    localList.forEach(item => {
+                        if (item && item.id) {
+                            merged.set(item.id, {
+                                id: item.id,
+                                name: toTitleCase(item.name || 'Pengguna'),
+                                email: String(item.email || '').trim().toLowerCase()
+                            });
+                        }
+                    });
+                }
             } catch {
-                return [];
+                // Abaikan error parse lokal
             }
+
+            if (Array.isArray(cloudAccountsCache)) {
+                cloudAccountsCache.forEach(item => {
+                    if (item && item.id) {
+                        const existing = merged.get(item.id) || {};
+                        merged.set(item.id, {
+                            id: item.id,
+                            name: toTitleCase(item.name || existing.name || 'Pengguna'),
+                            email: String(item.email || existing.email || '').trim().toLowerCase()
+                        });
+                    }
+                });
+            }
+
+            return Array.from(merged.values());
         }
 
         function saveAccountsIndex(list) {
@@ -1201,6 +1158,8 @@
         }
 
         function updateGreeting() {
+            if (!state) return;
+
             const hour = new Date().getHours();
             let greetingText = 'Selamat Malam';
             if (hour >= 4 && hour < 11) greetingText = 'Selamat Pagi';
@@ -1336,6 +1295,7 @@
         }
 
         function refreshDashboard() {
+            if (!state) return;
             updateGreeting();
             const { cashBalance, appBalance, totalBalance } = calculateWalletBalances();
             const hidden = !!state.hideBalances;
@@ -1594,6 +1554,7 @@
         }
 
         function renderTransactionsList() {
+            if (!state) return;
             const listEl = document.getElementById('transactions-list');
             if (!listEl) return;
 
@@ -1973,6 +1934,7 @@
         }
 
         function renderSavingsTab() {
+            if (!state) return;
             updateSavingModeUI();
             const dateInput = document.getElementById('saving-date');
             if (dateInput && !dateInput.value) {
@@ -2210,6 +2172,7 @@
         }
 
         function renderDebtsList() {
+            if (!state) return;
             setDebtActionMode(currentDebtActionMode);
 
             const dateInput = document.getElementById('debt-date');
@@ -2493,6 +2456,7 @@
 
         // Rekapan & Anggaran di Tab Akun
         function renderAccountRecap() {
+            if (!state) return;
             const totalIncome = state.transactions
                 .filter(t => t.type === 'income')
                 .reduce((s, t) => s + (Number(t.amount) || 0), 0);
@@ -2682,7 +2646,9 @@
 
                 if (navBtn) {
                     navBtn.className = `motion-nav flex flex-col items-center justify-center py-1 ${
-                        isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'
+                        isActive
+                            ? 'text-blue-600 dark:text-blue-400'
+                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                     }`;
                 }
             });
@@ -2692,11 +2658,11 @@
             if (tabName === 'transactions') renderTransactionsList();
             if (tabName === 'debts') renderDebtsList();
             if (tabName === 'account') renderAccountRecap();
-
             lucide.createIcons();
         }
 
         function refreshAllViews() {
+            if (!state) return;
             populateSelectOptions();
             refreshDashboard();
             renderSavingsTab();
@@ -2712,6 +2678,46 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        function getWalletLogoSvg(walletId, sizeClass = 'w-8 h-8') {
+            const map = {
+                cash: { bg: 'bg-emerald-600', label: 'CASH' },
+                dana: { bg: 'bg-sky-600', label: 'DANA' },
+                seabank: { bg: 'bg-orange-600', label: 'SEA' },
+                brimo: { bg: 'bg-blue-700', label: 'BRI' },
+                bsi: { bg: 'bg-teal-600', label: 'BSI' },
+                jago: { bg: 'bg-amber-500', label: 'JAGO' },
+                gopay: { bg: 'bg-cyan-600', label: 'GO' },
+                ovo: { bg: 'bg-indigo-600', label: 'OVO' }
+            };
+            const item = map[walletId] || { bg: 'bg-blue-600', label: 'DOM' };
+            return `<div class="${sizeClass} rounded-xl ${item.bg} text-white flex items-center justify-center font-display font-extrabold text-[10px] tracking-tight shrink-0">${item.label}</div>`;
+        }
+
+        function initAccountSession() {
+            const accounts = loadAccountsIndex();
+            const savedActiveId = localStorage.getItem(STORAGE_ACTIVE_KEY) || '';
+            const isLoggedIn = localStorage.getItem(STORAGE_LOGGED_IN_KEY) === 'true';
+
+            if (!accounts.length) {
+                showAuthGate('register');
+                return;
+            }
+
+            if (!isLoggedIn) {
+                showAuthGate('login');
+                return;
+            }
+
+            const targetAcc = accounts.find(a => a.id === savedActiveId) || accounts[0];
+            activeAccountId = targetAcc.id;
+            localStorage.setItem(STORAGE_ACTIVE_KEY, activeAccountId);
+            loadAccountState(activeAccountId);
+            if (typeof window.subscribeToCloudAccount === 'function') {
+                window.subscribeToCloudAccount(activeAccountId);
+            }
+            hideAuthGate();
         }
 
         // Inisialisasi Lenis, GSAP ScrollTrigger, & Motion
@@ -2768,7 +2774,7 @@
             }
         });
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             // Cegah pinch-to-zoom & double-tap zoom di browser/mobile
             document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false });
             document.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
@@ -2783,8 +2789,13 @@
                 }
             });
 
+            if (typeof window.initCloudSync === 'function') {
+                await window.initCloudSync();
+            }
             initAccountSession();
-            refreshAllViews();
+            if (state) {
+                refreshAllViews();
+            }
             initMotionAndScroll();
             lucide.createIcons();
 
@@ -2796,6 +2807,131 @@
                 }, 420);
             }
         });
+    </script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDocs, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+
+        function getAccountsCollectionRef() {
+            return collection(db, 'artifacts', appId, 'public', 'data', 'abuycheck_accounts');
+        }
+
+        function getAccountDocRef(accId) {
+            return doc(db, 'artifacts', appId, 'public', 'data', 'abuycheck_accounts', accId);
+        }
+
+        async function refreshCloudDirectory() {
+            if (!db || !currentUser) return;
+            try {
+                const snap = await getDocs(getAccountsCollectionRef());
+                const list = [];
+                snap.forEach(d => {
+                    const data = d.data() || {};
+                    if (data.email || data.name) {
+                        list.push({
+                            id: d.id,
+                            name: data.profileName || data.name || 'Pengguna',
+                            email: String(data.email || '').trim().toLowerCase(),
+                            password: String(data.password || '')
+                        });
+                        if (data.stateJson) {
+                            localStorage.setItem(getAccountStorageKey(d.id), data.stateJson);
+                        }
+                    }
+                });
+                cloudAccountsCache = list;
+                saveAccountsIndex(loadAccountsIndex());
+            } catch {
+                // Abaikan jika gagal memuat direktori cloud
+            }
+        }
+
+        window.subscribeToCloudAccount = function (accId) {
+            if (typeof window.cloudUnsubscribe === 'function') {
+                window.cloudUnsubscribe();
+                window.cloudUnsubscribe = null;
+            }
+            if (!db || !currentUser || !accId) return;
+
+            window.cloudUnsubscribe = onSnapshot(
+                getAccountDocRef(accId),
+                snap => {
+                    if (!snap.exists()) return;
+                    const data = snap.data() || {};
+                    if (!data.stateJson) return;
+                    try {
+                        const remoteState = JSON.parse(data.stateJson);
+                        const currentSerialized = JSON.stringify(state);
+                        if (data.stateJson !== currentSerialized && remoteState && typeof remoteState === 'object') {
+                            localStorage.setItem(getAccountStorageKey(accId), data.stateJson);
+                            if (activeAccountId === accId) {
+                                loadAccountState(accId);
+                                refreshAllViews();
+                            }
+                        }
+                    } catch {
+                        // Abaikan data tidak valid
+                    }
+                },
+                () => {
+                    // Error callback wajib untuk onSnapshot
+                }
+            );
+        };
+
+        window.scheduleCloudAccountSync = function () {
+            if (!db || !currentUser || !activeAccountId || !state) return;
+            clearTimeout(window.cloudSaveTimer);
+            window.cloudSaveTimer = setTimeout(async () => {
+                try {
+                    const serialized = JSON.stringify(state);
+                    await setDoc(getAccountDocRef(activeAccountId), {
+                        id: activeAccountId,
+                        name: state.profileName || 'Pengguna',
+                        profileName: state.profileName || 'Pengguna',
+                        email: String(state.email || '').trim().toLowerCase(),
+                        password: String(state.password || ''),
+                        stateJson: serialized,
+                        updatedAt: Date.now()
+                    }, { merge: true });
+                } catch {
+                    // Abaikan jika jaringan sedang offline
+                }
+            }, 250);
+        };
+
+        window.initCloudSync = async function () {
+            try {
+                if (typeof __firebase_config === 'undefined' || !__firebase_config) return;
+                const firebaseConfig = JSON.parse(__firebase_config);
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                currentUser = auth.currentUser;
+                cloudReady = !!currentUser;
+
+                if (cloudReady) {
+                    await refreshCloudDirectory();
+                    if (activeAccountId && localStorage.getItem(STORAGE_LOGGED_IN_KEY) === 'true') {
+                        window.subscribeToCloudAccount(activeAccountId);
+                    }
+                }
+            } catch {
+                cloudReady = false;
+            }
+        };
     </script>
 </body>
 </html>
