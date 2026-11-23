@@ -62,6 +62,85 @@
         <h1 class="mt-3 font-display font-extrabold text-xl tracking-tight text-blue-600 dark:text-blue-400">ABuyCheck</h1>
     </div>
 
+    <!-- Gerbang Masuk / Daftar Akun (Muncul Hanya Jika Belum Punya Akun / Keluar Akun) -->
+    <div id="auth-gate" class="fixed inset-0 z-40 hidden bg-white dark:bg-black overflow-y-auto px-4 py-8">
+        <div class="max-w-sm mx-auto space-y-5">
+            <div class="text-center space-y-2">
+                <div class="w-14 h-14 mx-auto rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md">
+                    <svg viewBox="0 0 40 40" class="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="6" y="9" width="28" height="22" rx="6" stroke="currentColor" stroke-width="2.6"/>
+                        <path d="M6 16H34" stroke="currentColor" stroke-width="2.4"/>
+                        <circle cx="27" cy="23" r="2.2" fill="currentColor"/>
+                        <path d="M13 24L17 20L20 23L24 19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <h2 class="font-display font-extrabold text-xl text-blue-600 dark:text-blue-400">ABuyCheck</h2>
+                <p id="auth-subtitle" class="text-xs text-slate-500 dark:text-slate-400">Silakan daftar atau masuk untuk mulai mencatat keuangan.</p>
+            </div>
+
+            <!-- Pilihan Mode Masuk vs Daftar -->
+            <div class="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200/70 dark:border-blue-900">
+                <button type="button" id="auth-tab-login" onclick="switchAuthMode('login')" class="py-2 rounded-xl text-xs font-bold bg-blue-600 text-white transition-colors">
+                    Masuk Akun
+                </button>
+                <button type="button" id="auth-tab-register" onclick="switchAuthMode('register')" class="py-2 rounded-xl text-xs font-bold text-blue-900 dark:text-blue-200 transition-colors">
+                    Daftar Akun
+                </button>
+            </div>
+
+            <!-- Form Masuk Akun -->
+            <form id="auth-login-form" onsubmit="handleAuthLogin(event)" class="rounded-2xl bg-blue-50/40 dark:bg-blue-950/25 border border-blue-200/80 dark:border-blue-900 p-4 space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">Email Akun</label>
+                    <input type="email" id="login-email" required placeholder="nama@email.com" class="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-black border border-blue-200 dark:border-blue-800 text-xs">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">Password (6 Karakter)</label>
+                    <div class="relative">
+                        <input type="password" id="login-password" maxlength="6" required placeholder="Contoh: Abcde1" class="w-full px-3 py-2.5 pr-10 rounded-xl bg-white dark:bg-black border border-blue-200 dark:border-blue-800 text-xs font-mono">
+                        <button type="button" onclick="togglePasswordVisibility('login-password', 'login-eye')" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600">
+                            <i id="login-eye" data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+                <p id="auth-error-msg" class="hidden text-xs font-semibold text-rose-600 dark:text-rose-400"></p>
+                <button type="submit" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-colors">
+                    Masuk Sekarang
+                </button>
+            </form>
+
+            <!-- Form Daftar Akun (5 Huruf + 1 Angka + Perpaduan Kapital, Total 6 Karakter) -->
+            <form id="auth-register-form" onsubmit="handleAuthRegister(event)" class="hidden rounded-2xl bg-blue-50/40 dark:bg-blue-950/25 border border-blue-200/80 dark:border-blue-900 p-4 space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">Nama Lengkap</label>
+                    <input type="text" id="register-name" required placeholder="Contoh: Budi Santoso" class="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-black border border-blue-200 dark:border-blue-800 text-xs">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">Email</label>
+                    <input type="email" id="register-email" required placeholder="nama@email.com" class="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-black border border-blue-200 dark:border-blue-800 text-xs">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">Password (6 Karakter: 5 Huruf + 1 Angka, Ada Kapital)</label>
+                    <div class="relative">
+                        <input type="password" id="register-password" maxlength="6" required oninput="validateRegisterPasswordLive()" placeholder="Contoh: BudiA1" class="w-full px-3 py-2.5 pr-10 rounded-xl bg-white dark:bg-black border border-blue-200 dark:border-blue-800 text-xs font-mono">
+                        <button type="button" onclick="togglePasswordVisibility('register-password', 'register-eye')" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600">
+                            <i id="register-eye" data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div id="password-rules-box" class="mt-2 space-y-1 text-[11px]">
+                        <div id="rule-length" class="text-rose-600 dark:text-rose-400">• Panjang tepat 6 karakter</div>
+                        <div id="rule-composition" class="text-rose-600 dark:text-rose-400">• Terdiri dari 5 huruf dan 1 angka</div>
+                        <div id="rule-case" class="text-rose-600 dark:text-rose-400">• Ada perpaduan huruf kapital & huruf kecil</div>
+                    </div>
+                </div>
+                <p id="register-error-msg" class="hidden text-xs font-semibold text-rose-600 dark:text-rose-400"></p>
+                <button type="submit" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-colors">
+                    Daftar & Masuk
+                </button>
+            </form>
+        </div>
+    </div>
+
     <!-- Container Utama Aplikasi -->
     <div id="app-shell" class="min-h-screen max-w-md mx-auto bg-white dark:bg-black shadow-xl shadow-blue-950/5 border-x border-blue-100 dark:border-blue-950/80 pb-24 flex flex-col">
 
@@ -150,60 +229,109 @@
                     </button>
                 </div>
 
-                <!-- Pilihan Periode Rekapan (Angka Saja, Tanggal Tersembunyi Secara Default) -->
-                <div class="gsap-card rounded-2xl bg-blue-50/50 dark:bg-blue-950/25 border border-blue-200/70 dark:border-blue-900/60 p-3.5 space-y-3">
-                    <div class="flex items-center justify-between gap-2">
-                        <h2 class="font-display font-bold text-sm text-blue-950 dark:text-blue-200">Rekapan</h2>
-                        <button type="button" onclick="toggleRecapDateBox()" class="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                <!-- Rekapan Periode (Angka Saja) -->
+                <div class="gsap-card rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-blue-100 dark:border-blue-950 p-3.5 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <h2 class="font-display font-bold text-xs uppercase tracking-wider text-blue-700 dark:text-blue-400">Rekapan Periode</h2>
+                        <button type="button" onclick="toggleRecapDateBox()" class="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
                             <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
-                            <span>Atur Tanggal</span>
+                            <span>Filter Tanggal</span>
                         </button>
                     </div>
 
-                    <div class="grid grid-cols-4 gap-1.5" id="recap-period-buttons">
-                        <button type="button" data-period="daily" onclick="setRecapPeriod('daily')" class="recap-period-btn py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white">Harian</button>
-                        <button type="button" data-period="weekly" onclick="setRecapPeriod('weekly')" class="recap-period-btn py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-black text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-900">Mingguan</button>
-                        <button type="button" data-period="monthly" onclick="setRecapPeriod('monthly')" class="recap-period-btn py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-black text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-900">Bulanan</button>
-                        <button type="button" data-period="all" onclick="setRecapPeriod('all')" class="recap-period-btn py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-black text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-900">Semua</button>
+                    <div class="grid grid-cols-4 gap-1.5">
+                        <button type="button" data-period="daily" onclick="setRecapPeriod('daily')" class="recap-period-btn py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition-colors">Hari</button>
+                        <button type="button" data-period="weekly" onclick="setRecapPeriod('weekly')" class="recap-period-btn py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-black text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-900 transition-colors">Minggu</button>
+                        <button type="button" data-period="monthly" onclick="setRecapPeriod('monthly')" class="recap-period-btn py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-black text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-900 transition-colors">Bulan</button>
+                        <button type="button" data-period="all" onclick="setRecapPeriod('all')" class="recap-period-btn py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-black text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-900 transition-colors">Semua</button>
                     </div>
 
-                    <!-- Box Tanggal Tersembunyi Secara Bawaan -->
                     <div id="recap-date-box" class="hidden grid grid-cols-2 gap-2 pt-1">
-                        <div>
-                            <label class="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Dari Tanggal</label>
-                            <input type="date" id="recap-start-date" onchange="refreshDashboard()" class="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-black border border-blue-200 dark:border-blue-900 text-xs">
-                        </div>
-                        <div>
-                            <label class="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Sampai Tanggal</label>
-                            <input type="date" id="recap-end-date" onchange="refreshDashboard()" class="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-black border border-blue-200 dark:border-blue-900 text-xs">
-                        </div>
+                        <input type="date" id="recap-start-date" onchange="refreshDashboard()" class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-black border border-blue-200 dark:border-blue-800 text-xs">
+                        <input type="date" id="recap-end-date" onchange="refreshDashboard()" class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-black border border-blue-200 dark:border-blue-800 text-xs">
                     </div>
 
                     <div class="grid grid-cols-3 gap-2 pt-1">
-                        <div class="rounded-xl bg-white dark:bg-black border border-blue-200/70 dark:border-blue-900/70 p-2.5">
-                            <span class="text-[11px] text-slate-500 dark:text-slate-400 block">Masuk</span>
+                        <div class="rounded-xl bg-white dark:bg-black border border-blue-100 dark:border-blue-900/70 p-2.5">
+                            <span class="text-[10px] text-slate-500 block">Masuk</span>
                             <span id="recap-period-income" class="font-display font-bold text-xs text-emerald-600 dark:text-emerald-400">Rp 0</span>
                         </div>
-                        <div class="rounded-xl bg-white dark:bg-black border border-blue-200/70 dark:border-blue-900/70 p-2.5">
-                            <span class="text-[11px] text-slate-500 dark:text-slate-400 block">Keluar</span>
+                        <div class="rounded-xl bg-white dark:bg-black border border-blue-100 dark:border-blue-900/70 p-2.5">
+                            <span class="text-[10px] text-slate-500 block">Keluar</span>
                             <span id="recap-period-expense" class="font-display font-bold text-xs text-rose-600 dark:text-rose-400">Rp 0</span>
                         </div>
-                        <div class="rounded-xl bg-white dark:bg-black border border-blue-200/70 dark:border-blue-900/70 p-2.5">
-                            <span class="text-[11px] text-slate-500 dark:text-slate-400 block">Selisih</span>
+                        <div class="rounded-xl bg-white dark:bg-black border border-blue-100 dark:border-blue-900/70 p-2.5">
+                            <span class="text-[10px] text-slate-500 block">Selisih</span>
                             <span id="recap-period-net" class="font-display font-bold text-xs text-blue-700 dark:text-blue-300">Rp 0</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Transaksi Terbaru di Beranda -->
-                <div class="gsap-card rounded-2xl bg-white dark:bg-black border border-blue-200/70 dark:border-blue-900/70 p-3.5 space-y-2.5">
-                    <div class="flex items-center justify-between">
-                        <h2 class="font-display font-bold text-sm text-blue-950 dark:text-blue-200">Transaksi Terbaru</h2>
-                        <button type="button" onclick="switchTab('transactions')" class="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">
-                            Lihat Semua
-                        </button>
+                <div class="gsap-card space-y-2">
+                    <div class="flex items-center justify-between px-1">
+                        <h2 class="font-display font-bold text-xs uppercase tracking-wider text-blue-700 dark:text-blue-400">Transaksi Terbaru</h2>
+                        <button type="button" onclick="switchTab('transactions')" class="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">Lihat Semua</button>
                     </div>
                     <div id="recent-transactions-list" class="space-y-2"></div>
+                </div>
+            </section>
+
+            <!-- TAB 4: HUTANG & PIUTANG (Disusun Seperti Tabungan: Form di Atas, Menu Pos Terpisah + Sembunyikan Saldo, Riwayat Mutasi) -->
+            <section id="tab-debts" class="tab-panel hidden space-y-4">
+                <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3.5 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h2 class="font-display font-bold text-sm text-slate-900 dark:text-white">Catat Hutang & Piutang</h2>
+                        <button type="button" onclick="openAddDebtPocketModal()" class="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                            <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i>
+                            <span>Tambah Pos</span>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" id="debt-mode-add" onclick="setDebtActionMode('add')" class="py-2 rounded-xl bg-blue-600 text-white text-xs font-bold transition-colors">
+                            Tambah / Catat
+                        </button>
+                        <button type="button" id="debt-mode-pay" onclick="setDebtActionMode('pay')" class="py-2 rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold transition-colors">
+                            Bayar / Kurangi
+                        </button>
+                    </div>
+
+                    <form id="debt-form" onsubmit="handleDebtSubmit(event)" class="space-y-2.5">
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Pilih Pos Hutang / Piutang</label>
+                            <select id="debt-pocket-select" required class="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium"></select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Nominal (Rp)</label>
+                                <input type="text" id="debt-amount" inputmode="numeric" required placeholder="50.000" oninput="formatRupiahInput(this)" class="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-semibold">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Tanggal</label>
+                                <input type="date" id="debt-date" required class="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Catatan (Opsional)</label>
+                            <input type="text" id="debt-note" placeholder="Keterangan singkat..." class="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs">
+                        </div>
+                        <button type="submit" id="debt-submit-btn" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors">
+                            Simpan Catatan Hutang
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Menu-Menu Pos Hutang & Piutang Terpisah (Seperti Tabungan) -->
+                <div class="space-y-2.5">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 px-1">Daftar Menu Hutang & Piutang</h3>
+                    <div id="debt-pockets-list" class="space-y-2.5"></div>
+                </div>
+
+                <!-- Riwayat Mutasi Hutang & Piutang -->
+                <div class="space-y-2">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 px-1">Catatan Mutasi Hutang & Piutang</h3>
+                    <div id="debts-list" class="space-y-2"></div>
                 </div>
             </section>
 
@@ -299,32 +427,6 @@
                 </div>
 
                 <div id="transactions-list" class="space-y-2"></div>
-            </section>
-
-            <!-- TAB 4: HUTANG & PIUTANG -->
-            <section id="tab-debts" class="tab-panel hidden space-y-4">
-                <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3.5 space-y-2.5">
-                    <h2 class="font-display font-bold text-sm text-slate-900 dark:text-white">Catat Hutang & Piutang</h2>
-                    <form id="debt-form" onsubmit="handleDebtSubmit(event)" class="space-y-2.5">
-                        <div class="grid grid-cols-2 gap-2">
-                            <select id="debt-type" class="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium">
-                                <option value="debt">Saya Berhutang</option>
-                                <option value="receivable">Orang Berhutang (Piutang)</option>
-                            </select>
-                            <input type="text" id="debt-person" required placeholder="Nama orang..." class="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs">
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <input type="text" id="debt-amount" inputmode="numeric" required placeholder="Nominal (Rp)" oninput="formatRupiahInput(this)" class="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-semibold">
-                            <input type="date" id="debt-date" required class="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs">
-                        </div>
-                        <input type="text" id="debt-note" placeholder="Keterangan singkat..." class="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs">
-                        <button type="submit" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors">
-                            Simpan Catatan
-                        </button>
-                    </form>
-                </div>
-
-                <div id="debts-list" class="space-y-2"></div>
             </section>
 
             <!-- TAB 5: AKUN (Rekapan & Anggaran) -->
@@ -452,11 +554,11 @@
                     <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
             </div>
-            <div id="wallet-breakdown-list" class="space-y-2 max-h-[65vh] overflow-y-auto pr-0.5"></div>
+            <div id="wallet-breakdown-list" class="space-y-2 max-h-80 overflow-y-auto"></div>
         </div>
     </div>
 
-    <!-- Modal Tambah Kantong / Menu Tabungan -->
+    <!-- Modal Tambah Menu Tabungan -->
     <div id="add-pocket-modal" class="fixed inset-0 z-50 hidden bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3">
         <div class="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 space-y-3 shadow-2xl">
             <div class="flex items-center justify-between">
@@ -467,11 +569,39 @@
             </div>
             <form onsubmit="handleAddSavingPocket(event)" class="space-y-3">
                 <div>
-                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Nama Tabungan</label>
-                    <input type="text" id="new-pocket-name" required placeholder="Contoh: Tabungan Liburan" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Nama Menu Tabungan</label>
+                    <input type="text" id="new-pocket-name" required placeholder="Contoh: Dana Pendidikan" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
                 </div>
                 <button type="submit" class="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">
-                    Buat Tabungan
+                    Buat Menu Tabungan
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Tambah Pos Hutang / Piutang -->
+    <div id="add-debt-pocket-modal" class="fixed inset-0 z-50 hidden bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3">
+        <div class="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 space-y-3 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 class="font-display font-bold text-sm text-slate-900 dark:text-white">Tambah Menu Hutang / Piutang</h3>
+                <button type="button" onclick="closeAddDebtPocketModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <form onsubmit="handleAddDebtPocket(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Jenis</label>
+                    <select id="new-debt-pocket-type" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium">
+                        <option value="debt">Saya Berhutang</option>
+                        <option value="receivable">Orang Berhutang (Piutang)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Nama Orang / Pos</label>
+                    <input type="text" id="new-debt-pocket-name" required placeholder="Contoh: Hutang ke Rina" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                </div>
+                <button type="submit" class="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">
+                    Buat Menu
                 </button>
             </form>
         </div>
@@ -512,11 +642,11 @@
                 </button>
             </form>
 
-            <!-- Daftar Ganti / Tambah Akun Terpisah -->
+            <!-- Daftar Ganti / Tambah / Keluar Akun Terpisah -->
             <div class="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
                 <div class="flex items-center justify-between">
                     <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Akun Tersimpan</span>
-                    <button type="button" onclick="createNewAccountProfile()" class="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline">+ Akun Baru</button>
+                    <button type="button" onclick="logoutCurrentAccount()" class="text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:underline">Keluar Akun</button>
                 </div>
                 <div id="saved-accounts-list" class="space-y-1.5 max-h-36 overflow-y-auto"></div>
             </div>
@@ -553,21 +683,268 @@
 
         const STORAGE_INDEX_KEY = 'abuycheck_accounts_index_v1';
         const STORAGE_ACTIVE_KEY = 'abuycheck_active_account_v1';
+        const STORAGE_LOGGED_IN_KEY = 'abuycheck_is_logged_in_v1';
 
         let activeAccountId = '';
         let state = null;
         let currentTxType = 'expense';
         let currentSavingType = 'deposit';
+        let currentDebtActionMode = 'add';
         let currentRecapPeriod = 'daily';
         let openMenuId = null;
         let confirmDeleteId = null;
 
-        // Mengubah setiap awal kata menjadi kapital (Title Case)
-        function toTitleCase(text) {
-            return String(text || '')
+        function toTitleCase(str) {
+            return String(str || '')
                 .trim()
                 .toLowerCase()
-                .replace(/\b\w/g, char => char.toUpperCase());
+                .replace(/\b\w/g, ch => ch.toUpperCase());
+        }
+
+        function createDefaultAccountState(profileName, email = '', password = '') {
+            const today = new Date().toISOString().split('T')[0];
+            return {
+                profileName: toTitleCase(profileName || 'Pengguna'),
+                email: String(email || '').trim().toLowerCase(),
+                password: String(password || ''),
+                theme: 'light',
+                hideBalances: false,
+                transactions: [],
+                savingsPockets: [
+                    { id: 'pocket-darurat', name: 'Tabungan Darurat', hidden: false },
+                    { id: 'pocket-masa-depan', name: 'Tabungan Masa Depan', hidden: false }
+                ],
+                savingsEntries: [],
+                debtPockets: [
+                    { id: 'debt-pocket-1', name: 'Hutang Pribadi', type: 'debt', hidden: false },
+                    { id: 'debt-pocket-2', name: 'Piutang Teman', type: 'receivable', hidden: false }
+                ],
+                debts: [],
+                budgets: {
+                    'Makanan & Minuman': 1500000,
+                    'Transportasi': 600000,
+                    'Belanja': 1000000,
+                    'Tagihan': 800000
+                },
+                createdAt: today
+            };
+        }
+
+        // Validasi password: tepat 6 karakter, terdiri dari 5 huruf & 1 angka, ada huruf kapital & kecil
+        function evaluatePasswordRules(pw) {
+            const val = String(pw || '');
+            const isLengthOk = val.length === 6;
+            const letters = (val.match(/[A-Za-z]/g) || []).length;
+            const digits = (val.match(/[0-9]/g) || []).length;
+            const isCompositionOk = letters === 5 && digits === 1 && val.length === 6;
+            const hasUpper = /[A-Z]/.test(val);
+            const hasLower = /[a-z]/.test(val);
+            const isCaseOk = hasUpper && hasLower;
+
+            return {
+                isLengthOk,
+                isCompositionOk,
+                isCaseOk,
+                allValid: isLengthOk && isCompositionOk && isCaseOk
+            };
+        }
+
+        function validateRegisterPasswordLive() {
+            const input = document.getElementById('register-password');
+            if (!input) return;
+            const rules = evaluatePasswordRules(input.value);
+
+            const rLen = document.getElementById('rule-length');
+            const rComp = document.getElementById('rule-composition');
+            const rCase = document.getElementById('rule-case');
+
+            if (rLen) rLen.className = rules.isLengthOk ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-rose-600 dark:text-rose-400';
+            if (rComp) rComp.className = rules.isCompositionOk ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-rose-600 dark:text-rose-400';
+            if (rCase) rCase.className = rules.isCaseOk ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-rose-600 dark:text-rose-400';
+        }
+
+        function togglePasswordVisibility(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            if (!input) return;
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            if (icon) icon.setAttribute('data-lucide', show ? 'eye-off' : 'eye');
+            lucide.createIcons();
+        }
+
+        function switchAuthMode(mode) {
+            const loginTab = document.getElementById('auth-tab-login');
+            const regTab = document.getElementById('auth-tab-register');
+            const loginForm = document.getElementById('auth-login-form');
+            const regForm = document.getElementById('auth-register-form');
+            const errLogin = document.getElementById('auth-error-msg');
+            const errReg = document.getElementById('register-error-msg');
+
+            if (errLogin) errLogin.classList.add('hidden');
+            if (errReg) errReg.classList.add('hidden');
+
+            const isRegister = mode === 'register';
+            if (loginTab) {
+                loginTab.className = `py-2 rounded-xl text-xs font-bold transition-colors ${
+                    !isRegister ? 'bg-blue-600 text-white' : 'text-blue-900 dark:text-blue-200'
+                }`;
+            }
+            if (regTab) {
+                regTab.className = `py-2 rounded-xl text-xs font-bold transition-colors ${
+                    isRegister ? 'bg-blue-600 text-white' : 'text-blue-900 dark:text-blue-200'
+                }`;
+            }
+            if (loginForm) loginForm.classList.toggle('hidden', isRegister);
+            if (regForm) regForm.classList.toggle('hidden', !isRegister);
+        }
+
+        function showAuthGate(defaultMode = 'login', customMsg = '') {
+            const gate = document.getElementById('auth-gate');
+            const shell = document.getElementById('app-shell');
+            if (shell) shell.classList.add('hidden');
+            if (gate) gate.classList.remove('hidden');
+            switchAuthMode(defaultMode);
+
+            if (customMsg) {
+                const targetErr = defaultMode === 'register'
+                    ? document.getElementById('register-error-msg')
+                    : document.getElementById('auth-error-msg');
+                if (targetErr) {
+                    targetErr.textContent = customMsg;
+                    targetErr.classList.remove('hidden');
+                }
+            }
+            lucide.createIcons();
+        }
+
+        function hideAuthGate() {
+            const gate = document.getElementById('auth-gate');
+            const shell = document.getElementById('app-shell');
+            if (gate) gate.classList.add('hidden');
+            if (shell) shell.classList.remove('hidden');
+        }
+
+        function handleAuthRegister(e) {
+            e.preventDefault();
+            const nameVal = toTitleCase(document.getElementById('register-name')?.value || '');
+            const emailVal = String(document.getElementById('register-email')?.value || '').trim().toLowerCase();
+            const pwVal = String(document.getElementById('register-password')?.value || '');
+            const errEl = document.getElementById('register-error-msg');
+
+            if (!nameVal || !emailVal) {
+                if (errEl) {
+                    errEl.textContent = 'Nama dan email wajib diisi.';
+                    errEl.classList.remove('hidden');
+                }
+                return;
+            }
+
+            const rules = evaluatePasswordRules(pwVal);
+            if (!rules.allValid) {
+                if (errEl) {
+                    errEl.textContent = 'Password harus 6 karakter: 5 huruf & 1 angka dengan huruf kapital dan kecil.';
+                    errEl.classList.remove('hidden');
+                }
+                return;
+            }
+
+            const accounts = loadAccountsIndex();
+            if (accounts.some(a => String(a.email || '').toLowerCase() === emailVal)) {
+                if (errEl) {
+                    errEl.textContent = 'Email sudah terdaftar. Silakan masuk.';
+                    errEl.classList.remove('hidden');
+                }
+                return;
+            }
+
+            const newId = 'acc_' + Date.now();
+            const newState = createDefaultAccountState(nameVal, emailVal, pwVal);
+            accounts.push({ id: newId, name: nameVal, email: emailVal });
+            saveAccountsIndex(accounts);
+            localStorage.setItem(getAccountStorageKey(newId), JSON.stringify(newState));
+            localStorage.setItem(STORAGE_ACTIVE_KEY, newId);
+            localStorage.setItem(STORAGE_LOGGED_IN_KEY, 'true');
+
+            activeAccountId = newId;
+            loadAccountState(newId);
+            hideAuthGate();
+            refreshAllViews();
+            showToast(`Selamat datang, ${nameVal}`);
+        }
+
+        function handleAuthLogin(e) {
+            e.preventDefault();
+            const emailVal = String(document.getElementById('login-email')?.value || '').trim().toLowerCase();
+            const pwVal = String(document.getElementById('login-password')?.value || '');
+            const errEl = document.getElementById('auth-error-msg');
+
+            const accounts = loadAccountsIndex();
+            const matchedMeta = accounts.find(a => String(a.email || '').toLowerCase() === emailVal);
+            if (!matchedMeta) {
+                if (errEl) {
+                    errEl.textContent = 'Akun belum ditemukan. Silakan daftar akun terlebih dahulu.';
+                    errEl.classList.remove('hidden');
+                }
+                return;
+            }
+
+            let rawAcc = null;
+            try {
+                rawAcc = JSON.parse(localStorage.getItem(getAccountStorageKey(matchedMeta.id)) || 'null');
+            } catch {
+                rawAcc = null;
+            }
+
+            if (rawAcc && rawAcc.password && rawAcc.password !== pwVal) {
+                if (errEl) {
+                    errEl.textContent = 'Password tidak sesuai.';
+                    errEl.classList.remove('hidden');
+                }
+                return;
+            }
+
+            activeAccountId = matchedMeta.id;
+            localStorage.setItem(STORAGE_ACTIVE_KEY, matchedMeta.id);
+            localStorage.setItem(STORAGE_LOGGED_IN_KEY, 'true');
+            loadAccountState(matchedMeta.id);
+            hideAuthGate();
+            refreshAllViews();
+            showToast(`Masuk sebagai ${state.profileName}`);
+        }
+
+        function logoutCurrentAccount() {
+            saveState();
+            localStorage.setItem(STORAGE_LOGGED_IN_KEY, 'false');
+            closeAccountModal();
+            showAuthGate('login');
+        }
+
+        function initAccountSession() {
+            const accounts = loadAccountsIndex();
+            const savedActive = localStorage.getItem(STORAGE_ACTIVE_KEY);
+            const isLoggedIn = localStorage.getItem(STORAGE_LOGGED_IN_KEY) === 'true';
+
+            // Jika belum punya akun sama sekali, wajib daftar/masuk terlebih dahulu
+            if (!accounts.length) {
+                state = createDefaultAccountState('Pengguna');
+                applyThemeMode('light');
+                showAuthGate('register', 'Belum ada akun terdaftar. Silakan daftar akun terlebih dahulu.');
+                return;
+            }
+
+            // Jika sudah punya akun dan status sesi sudah masuk, langsung buka data akun tanpa login ulang
+            if (isLoggedIn && savedActive && accounts.some(a => a.id === savedActive)) {
+                activeAccountId = savedActive;
+                loadAccountState(activeAccountId);
+                hideAuthGate();
+                return;
+            }
+
+            // Jika punya akun namun belum masuk / baru keluar akun, tampilkan form masuk akun
+            activeAccountId = savedActive && accounts.some(a => a.id === savedActive) ? savedActive : accounts[0].id;
+            loadAccountState(activeAccountId);
+            showAuthGate('login');
         }
 
         // Logo SVG Kustom untuk Setiap Aplikasi
@@ -618,29 +995,6 @@
             }
         }
 
-        function createDefaultAccountState(profileName) {
-            const today = new Date().toISOString().split('T')[0];
-            return {
-                profileName: toTitleCase(profileName || 'Pengguna'),
-                theme: 'light',
-                hideBalances: false,
-                transactions: [],
-                savingsPockets: [
-                    { id: 'pocket-darurat', name: 'Tabungan Darurat', hidden: false },
-                    { id: 'pocket-masa-depan', name: 'Tabungan Masa Depan', hidden: false }
-                ],
-                savingsEntries: [],
-                debts: [],
-                budgets: {
-                    'Makanan & Minuman': 1500000,
-                    'Transportasi': 600000,
-                    'Belanja': 1000000,
-                    'Tagihan': 800000
-                },
-                createdAt: today
-            };
-        }
-
         function loadAccountsIndex() {
             try {
                 const raw = localStorage.getItem(STORAGE_INDEX_KEY);
@@ -659,24 +1013,6 @@
             return `abuycheck_data_${accId}`;
         }
 
-        function initAccountSession() {
-            let accounts = loadAccountsIndex();
-            let savedActive = localStorage.getItem(STORAGE_ACTIVE_KEY);
-
-            if (!accounts.length) {
-                const defaultId = 'acc_' + Date.now();
-                const defaultState = createDefaultAccountState('Pengguna');
-                accounts = [{ id: defaultId, name: defaultState.profileName }];
-                saveAccountsIndex(accounts);
-                localStorage.setItem(getAccountStorageKey(defaultId), JSON.stringify(defaultState));
-                savedActive = defaultId;
-                localStorage.setItem(STORAGE_ACTIVE_KEY, defaultId);
-            }
-
-            activeAccountId = accounts.some(a => a.id === savedActive) ? savedActive : accounts[0].id;
-            loadAccountState(activeAccountId);
-        }
-
         function loadAccountState(accId) {
             const indexList = loadAccountsIndex();
             const meta = indexList.find(a => a.id === accId);
@@ -693,6 +1029,12 @@
                 ? state.savingsPockets
                 : [{ id: 'pocket-utama', name: 'Tabungan Utama', hidden: false }];
             state.savingsEntries = Array.isArray(state.savingsEntries) ? state.savingsEntries : [];
+            state.debtPockets = Array.isArray(state.debtPockets) && state.debtPockets.length
+                ? state.debtPockets
+                : [
+                    { id: 'debt-pocket-1', name: 'Hutang Pribadi', type: 'debt', hidden: false },
+                    { id: 'debt-pocket-2', name: 'Piutang Teman', type: 'receivable', hidden: false }
+                ];
             state.debts = Array.isArray(state.debts) ? state.debts : [];
             state.budgets = state.budgets && typeof state.budgets === 'object' ? state.budgets : {};
 
@@ -1333,12 +1675,12 @@
         function handleAddSavingPocket(e) {
             e.preventDefault();
             const input = document.getElementById('new-pocket-name');
-            const name = toTitleCase(input ? input.value : '');
-            if (!name) return;
+            const cleanName = toTitleCase(input ? input.value : '');
+            if (!cleanName) return;
 
             const newPocket = {
                 id: 'pocket_' + Date.now(),
-                name,
+                name: cleanName,
                 hidden: false
             };
             state.savingsPockets.push(newPocket);
@@ -1352,17 +1694,16 @@
         }
 
         function deleteSavingEntryById(id) {
-            state.savingsEntries = state.savingsEntries.filter(s => s.id !== id);
+            state.savingsEntries = state.savingsEntries.filter(item => item.id !== id);
             openMenuId = null;
             confirmDeleteId = null;
             saveState();
             renderSavingsTab();
-            showToast('Mutasi tabungan dihapus');
+            showToast('Catatan tabungan dihapus');
         }
 
         function renderSavingsTab() {
             updateSavingModeUI();
-
             const dateInput = document.getElementById('saving-date');
             if (dateInput && !dateInput.value) {
                 dateInput.value = new Date().toISOString().split('T')[0];
@@ -1370,29 +1711,29 @@
 
             const selectEl = document.getElementById('saving-pocket-select');
             if (selectEl) {
-                const prev = selectEl.value;
+                const prevVal = selectEl.value;
                 selectEl.innerHTML = state.savingsPockets
                     .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`)
                     .join('');
-                if (prev && state.savingsPockets.some(p => p.id === prev)) {
-                    selectEl.value = prev;
+                if (prevVal && state.savingsPockets.some(p => p.id === prevVal)) {
+                    selectEl.value = prevVal;
                 }
             }
 
-            const pocketsListEl = document.getElementById('saving-pockets-list');
-            if (pocketsListEl) {
-                pocketsListEl.innerHTML = state.savingsPockets.map(p => {
-                    const bal = calculatePocketBalance(p.id);
-                    const isHidden = !!p.hidden;
+            const pocketsContainer = document.getElementById('saving-pockets-list');
+            if (pocketsContainer) {
+                pocketsContainer.innerHTML = state.savingsPockets.map(pocket => {
+                    const pocketBalance = calculatePocketBalance(pocket.id);
+                    const isHidden = !!pocket.hidden;
                     return `
                         <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3.5 flex items-center justify-between gap-2">
                             <div class="min-w-0">
-                                <span class="text-xs font-bold text-slate-900 dark:text-white block truncate">${escapeHtml(p.name)}</span>
+                                <span class="text-xs font-bold text-slate-900 dark:text-white block truncate">${escapeHtml(pocket.name)}</span>
                                 <span class="font-display font-extrabold text-base text-blue-700 dark:text-blue-300 mt-0.5 block">
-                                    ${formatMoneyDisplay(bal, isHidden)}
+                                    ${formatMoneyDisplay(pocketBalance, isHidden)}
                                 </span>
                             </div>
-                            <button type="button" onclick="togglePocketVisibility('${p.id}')" aria-label="Sembunyikan saldo ${escapeHtml(p.name)}" class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors">
+                            <button type="button" onclick="togglePocketVisibility('${pocket.id}')" aria-label="Sembunyikan saldo ${escapeHtml(pocket.name)}" class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors">
                                 <i data-lucide="${isHidden ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>
                             </button>
                         </div>
@@ -1400,14 +1741,13 @@
                 }).join('');
             }
 
-            const historyEl = document.getElementById('saving-history-list');
-            if (historyEl) {
+            const historyContainer = document.getElementById('saving-history-list');
+            if (historyContainer) {
                 if (!state.savingsEntries.length) {
-                    historyEl.innerHTML = `<div class="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 p-4 text-center text-xs text-slate-500">Belum ada mutasi tabungan.</div>`;
+                    historyContainer.innerHTML = `<div class="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 p-5 text-center text-xs text-slate-500">Belum ada catatan mutasi tabungan.</div>`;
                 } else {
-                    historyEl.innerHTML = state.savingsEntries.map(entry => {
+                    historyContainer.innerHTML = state.savingsEntries.map(entry => {
                         const pocket = state.savingsPockets.find(p => p.id === entry.pocketId);
-                        const pocketName = pocket ? pocket.name : 'Tabungan';
                         const isDeposit = entry.type === 'deposit';
                         const menuKey = 'sav_' + entry.id;
                         const isMenuOpen = openMenuId === menuKey;
@@ -1417,13 +1757,16 @@
                             <div class="relative rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3 flex items-center justify-between gap-2">
                                 <div class="min-w-0">
                                     <div class="flex items-center gap-1.5">
-                                        <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(pocketName)}</span>
-                                        <span class="text-[10px] text-slate-400">• ${escapeHtml(entry.date)}</span>
+                                        <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(pocket ? pocket.name : 'Tabungan')}</span>
+                                        <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${isDeposit ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'}">
+                                            ${isDeposit ? 'Setor' : 'Tarik'}
+                                        </span>
                                     </div>
-                                    <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtml(entry.note || (isDeposit ? 'Setor Tabungan' : 'Tarik Tabungan'))}</p>
+                                    <p class="text-[11px] text-slate-500 truncate mt-0.5">${escapeHtml(entry.date)}${entry.note ? ' • ' + escapeHtml(entry.note) : ''}</p>
                                 </div>
+
                                 <div class="flex items-center gap-1.5 shrink-0">
-                                    <span class="font-display font-bold text-xs ${isDeposit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
+                                    <span class="font-display font-bold text-xs ${isDeposit ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}">
                                         ${isDeposit ? '+' : '-'}${formatRupiah(entry.amount)}
                                     </span>
                                     <button type="button" onclick="toggleRowMenu('${menuKey}', event)" class="p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-700 text-slate-500">
@@ -1453,43 +1796,136 @@
             lucide.createIcons();
         }
 
-        // Hutang & Piutang
+        // Hutang & Piutang Ala Tabungan (Pos Terpisah, Sembunyikan Nominal, Tambah & Bayar/Kurangi)
+        function calculateDebtPocketBalance(pocketId) {
+            return state.debts
+                .filter(item => item.pocketId === pocketId)
+                .reduce((sum, item) => {
+                    const amt = Number(item.amount) || 0;
+                    return item.action === 'pay' ? sum - amt : sum + amt;
+                }, 0);
+        }
+
+        function setDebtActionMode(mode) {
+            currentDebtActionMode = mode === 'pay' ? 'pay' : 'add';
+            const addBtn = document.getElementById('debt-mode-add');
+            const payBtn = document.getElementById('debt-mode-pay');
+            const submitBtn = document.getElementById('debt-submit-btn');
+
+            if (addBtn) {
+                addBtn.className = `py-2 rounded-xl text-xs font-bold transition-colors ${
+                    currentDebtActionMode === 'add'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                }`;
+            }
+            if (payBtn) {
+                payBtn.className = `py-2 rounded-xl text-xs font-bold transition-colors ${
+                    currentDebtActionMode === 'pay'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                }`;
+            }
+            if (submitBtn) {
+                submitBtn.textContent = currentDebtActionMode === 'pay'
+                    ? 'Simpan Pembayaran / Pengurangan'
+                    : 'Simpan Catatan Hutang';
+                submitBtn.className = `w-full py-2.5 rounded-xl text-white text-xs font-bold transition-colors ${
+                    currentDebtActionMode === 'pay'
+                        ? 'bg-emerald-600 hover:bg-emerald-700'
+                        : 'bg-blue-600 hover:bg-blue-700'
+                }`;
+            }
+        }
+
+        function openAddDebtPocketModal() {
+            const modal = document.getElementById('add-debt-pocket-modal');
+            const input = document.getElementById('new-debt-pocket-name');
+            if (input) input.value = '';
+            if (modal) modal.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeAddDebtPocketModal() {
+            const modal = document.getElementById('add-debt-pocket-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function handleAddDebtPocket(e) {
+            e.preventDefault();
+            const typeSelect = document.getElementById('new-debt-pocket-type');
+            const nameInput = document.getElementById('new-debt-pocket-name');
+            const name = toTitleCase(nameInput ? nameInput.value : '');
+            if (!name) return;
+
+            const newPocket = {
+                id: 'debt_pocket_' + Date.now(),
+                name,
+                type: typeSelect && typeSelect.value === 'receivable' ? 'receivable' : 'debt',
+                hidden: false
+            };
+            state.debtPockets.push(newPocket);
+            saveState();
+            closeAddDebtPocketModal();
+            renderDebtsList();
+
+            const selectEl = document.getElementById('debt-pocket-select');
+            if (selectEl) selectEl.value = newPocket.id;
+            showToast('Menu hutang/piutang ditambahkan');
+        }
+
+        function toggleDebtPocketVisibility(pocketId) {
+            const pocket = state.debtPockets.find(p => p.id === pocketId);
+            if (!pocket) return;
+            pocket.hidden = !pocket.hidden;
+            saveState();
+            renderDebtsList();
+        }
+
         function handleDebtSubmit(e) {
             e.preventDefault();
-            const type = document.getElementById('debt-type').value;
-            const person = toTitleCase(document.getElementById('debt-person').value);
-            const amount = parseRupiahInput(document.getElementById('debt-amount').value);
-            const date = document.getElementById('debt-date').value;
-            const note = document.getElementById('debt-note').value.trim();
+            const pocketSelect = document.getElementById('debt-pocket-select');
+            const amountInput = document.getElementById('debt-amount');
+            const dateInput = document.getElementById('debt-date');
+            const noteInput = document.getElementById('debt-note');
 
-            if (!person || amount <= 0) {
-                showToast('Lengkapi nama dan nominal');
+            const pocketId = pocketSelect && pocketSelect.value
+                ? pocketSelect.value
+                : (state.debtPockets[0] && state.debtPockets[0].id);
+            const amount = parseRupiahInput(amountInput ? amountInput.value : '');
+            const date = dateInput && dateInput.value ? dateInput.value : new Date().toISOString().split('T')[0];
+            const note = noteInput ? noteInput.value.trim() : '';
+
+            if (!pocketId || amount <= 0) {
+                showToast('Pilih pos dan masukkan nominal');
                 return;
             }
 
+            if (currentDebtActionMode === 'pay') {
+                const currentBal = calculateDebtPocketBalance(pocketId);
+                if (amount > currentBal) {
+                    showToast('Nominal melebihi sisa saldo pos');
+                    return;
+                }
+            }
+
+            const pocket = state.debtPockets.find(p => p.id === pocketId);
             state.debts.unshift({
                 id: 'debt_' + Date.now(),
-                type,
-                person,
+                pocketId,
+                type: pocket ? pocket.type : 'debt',
+                person: pocket ? pocket.name : 'Pos Hutang',
+                action: currentDebtActionMode,
                 amount,
                 date,
-                note,
-                paid: false
+                note
             });
 
-            document.getElementById('debt-form').reset();
-            document.getElementById('debt-date').value = new Date().toISOString().split('T')[0];
+            if (amountInput) amountInput.value = '';
+            if (noteInput) noteInput.value = '';
             saveState();
             renderDebtsList();
-            showToast('Catatan hutang/piutang tersimpan');
-        }
-
-        function toggleDebtPaid(id) {
-            const item = state.debts.find(d => d.id === id);
-            if (!item) return;
-            item.paid = !item.paid;
-            saveState();
-            renderDebtsList();
+            showToast(currentDebtActionMode === 'pay' ? 'Pembayaran tercatat' : 'Catatan hutang/piutang tersimpan');
         }
 
         function deleteDebtById(id) {
@@ -1502,49 +1938,88 @@
         }
 
         function renderDebtsList() {
-            const listEl = document.getElementById('debts-list');
+            setDebtActionMode(currentDebtActionMode);
             const dateInput = document.getElementById('debt-date');
             if (dateInput && !dateInput.value) {
                 dateInput.value = new Date().toISOString().split('T')[0];
             }
+
+            const selectEl = document.getElementById('debt-pocket-select');
+            if (selectEl) {
+                const prev = selectEl.value;
+                selectEl.innerHTML = state.debtPockets
+                    .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)} (${p.type === 'receivable' ? 'Piutang' : 'Hutang'})</option>`)
+                    .join('');
+                if (prev && state.debtPockets.some(p => p.id === prev)) {
+                    selectEl.value = prev;
+                }
+            }
+
+            const pocketsListEl = document.getElementById('debt-pockets-list');
+            if (pocketsListEl) {
+                pocketsListEl.innerHTML = state.debtPockets.map(p => {
+                    const bal = calculateDebtPocketBalance(p.id);
+                    const isHidden = !!p.hidden;
+                    const isReceivable = p.type === 'receivable';
+                    return `
+                        <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3.5 flex items-center justify-between gap-2">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(p.name)}</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${isReceivable ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'}">
+                                        ${isReceivable ? 'Piutang' : 'Hutang'}
+                                    </span>
+                                </div>
+                                <span class="font-display font-extrabold text-base text-slate-900 dark:text-white mt-0.5 block">
+                                    ${formatMoneyDisplay(bal, isHidden)}
+                                </span>
+                            </div>
+                            <button type="button" onclick="toggleDebtPocketVisibility('${p.id}')" aria-label="Sembunyikan saldo ${escapeHtml(p.name)}" class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors">
+                                <i data-lucide="${isHidden ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            const listEl = document.getElementById('debts-list');
             if (!listEl) return;
 
             if (!state.debts.length) {
-                listEl.innerHTML = `<div class="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 p-5 text-center text-xs text-slate-500">Belum ada catatan hutang atau piutang.</div>`;
+                listEl.innerHTML = `<div class="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 p-5 text-center text-xs text-slate-500">Belum ada mutasi hutang atau piutang.</div>`;
+                lucide.createIcons();
                 return;
             }
 
             listEl.innerHTML = state.debts.map(d => {
-                const isDebt = d.type === 'debt';
+                const isPay = d.action === 'pay';
                 const menuKey = 'debt_' + d.id;
                 const isMenuOpen = openMenuId === menuKey;
                 const isConfirming = confirmDeleteId === d.id;
 
                 return `
-                    <div class="relative rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3 flex items-center justify-between gap-2 ${d.paid ? 'opacity-60' : ''}">
+                    <div class="relative rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3 flex items-center justify-between gap-2">
                         <div class="min-w-0">
                             <div class="flex items-center gap-1.5">
                                 <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(d.person)}</span>
-                                <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${isDebt ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'}">
-                                    ${isDebt ? 'Hutang' : 'Piutang'}
+                                <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${isPay ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'}">
+                                    ${isPay ? 'Bayar/Kurang' : 'Tambah'}
                                 </span>
-                                ${d.paid ? '<span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold bg-emerald-100 text-emerald-700">Lunas</span>' : ''}
                             </div>
                             <p class="text-[11px] text-slate-500 truncate mt-0.5">${escapeHtml(d.date)}${d.note ? ' • ' + escapeHtml(d.note) : ''}</p>
                         </div>
 
                         <div class="flex items-center gap-1.5 shrink-0">
-                            <span class="font-display font-bold text-xs text-slate-900 dark:text-white">${formatRupiah(d.amount)}</span>
+                            <span class="font-display font-bold text-xs ${isPay ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
+                                ${isPay ? '-' : '+'}${formatRupiah(d.amount)}
+                            </span>
                             <button type="button" onclick="toggleRowMenu('${menuKey}', event)" class="p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-700 text-slate-500">
                                 <i data-lucide="more-vertical" class="w-4 h-4"></i>
                             </button>
                         </div>
 
                         ${isMenuOpen ? `
-                            <div onclick="event.stopPropagation()" class="absolute right-3 top-11 z-20 w-40 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-1.5 space-y-1">
-                                <button type="button" onclick="toggleDebtPaid('${d.id}'); openMenuId = null; confirmDeleteId = null;" class="w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800">
-                                    ${d.paid ? 'Tandai Belum Lunas' : 'Tandai Lunas'}
-                                </button>
+                            <div onclick="event.stopPropagation()" class="absolute right-3 top-11 z-20 w-36 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-1.5">
                                 ${!isConfirming ? `
                                     <button type="button" onclick="requestDeleteItem('${d.id}', event)" class="w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50">
                                         Hapus
