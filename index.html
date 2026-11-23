@@ -32,7 +32,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js"></script>
     <script src="https://unpkg.com/lenis@1.1.14/dist/lenis.min.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         /* Transisi halaman yang halus tanpa gerak melompat berlebihan */
         .tab-panel {
@@ -267,6 +267,18 @@
                     </div>
                 </div>
 
+                <!-- Saran Keuangan Ke Depannya di Beranda -->
+                <div class="gsap-card rounded-2xl bg-blue-50/70 dark:bg-blue-950/35 border border-blue-200/80 dark:border-blue-900/80 p-3.5 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <h2 class="font-display font-bold text-xs uppercase tracking-wider text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                            <span>Saran Keuangan Ke Depannya</span>
+                        </h2>
+                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-600/10 text-blue-700 dark:text-blue-300">Otomatis</span>
+                    </div>
+                    <div id="dashboard-suggestions-list" class="space-y-1.5"></div>
+                </div>
+
                 <!-- Transaksi Terbaru di Beranda -->
                 <div class="gsap-card space-y-2">
                     <div class="flex items-center justify-between px-1">
@@ -421,8 +433,31 @@
                     </div>
 
                     <div id="history-date-filter" class="hidden grid grid-cols-2 gap-2 pt-1">
-                        <input type="date" id="filter-start-date" onchange="renderTransactionsList()" class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs">
-                        <input type="date" id="filter-end-date" onchange="renderTransactionsList()" class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs">
+                        <input type="date" id="filter-start-date" onchange="renderTransactionsList()" class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 text-xs">
+                        <input type="date" id="filter-end-date" onchange="renderTransactionsList()" class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 text-xs">
+                    </div>
+                </div>
+
+                <!-- Grafik Masuk vs Keluar & Diagram Kategori di Riwayat -->
+                <div class="space-y-2.5">
+                    <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold text-blue-700 dark:text-blue-400">Grafik Masuk vs Keluar</span>
+                            <span class="text-[10px] text-slate-400">Filter Aktif</span>
+                        </div>
+                        <div class="relative h-40 w-full">
+                            <canvas id="dashboard-cashflow-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold text-blue-700 dark:text-blue-400">Diagram Pengeluaran per Kategori</span>
+                            <span class="text-[10px] text-slate-400">Donut</span>
+                        </div>
+                        <div class="relative h-44 w-full">
+                            <canvas id="dashboard-category-chart"></canvas>
+                        </div>
                     </div>
                 </div>
 
@@ -694,6 +729,8 @@
         let expandedSavingPocketIds = {};
         let openMenuId = null;
         let confirmDeleteId = null;
+        let cashflowChartInstance = null;
+        let categoryChartInstance = null;
 
         function toTitleCase(str) {
             return String(str || '')
@@ -1259,6 +1296,9 @@
             if (pExpEl) pExpEl.textContent = formatRupiah(pExp);
             if (pNetEl) pNetEl.textContent = formatRupiah(pNet);
 
+            // Render Grafik & Diagram Rekap serta Saran Ke Depannya di Beranda
+            renderDashboardSuggestions(periodTxs, totalIncome, totalExpense, cashBalance, appBalance);
+
             // Daftar Transaksi Terbaru di Beranda (maksimal 5 transaksi terakhir)
             const recentEl = document.getElementById('recent-transactions-list');
             if (recentEl) {
@@ -1497,8 +1537,14 @@
 
             if (!filtered.length) {
                 listEl.innerHTML = `<div class="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 p-5 text-center text-xs text-slate-500">Tidak ada transaksi yang cocok.</div>`;
+                renderDashboardCharts([], 0, 0, 0, 0);
                 return;
             }
+
+            const { cashBalance, appBalance } = calculateWalletBalances();
+            const fInc = filtered.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+            const fExp = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+            renderDashboardCharts(filtered, fInc, fExp, cashBalance, appBalance);
 
             listEl.innerHTML = filtered.map(tx => {
                 const wallet = WALLETS.find(w => w.id === tx.walletId) || WALLETS[0];
@@ -1934,52 +1980,48 @@
                 ? pocketSelect.value
                 : (state.debtPockets[0] && state.debtPockets[0].id);
             const amount = parseRupiahInput(amountInput ? amountInput.value : '');
-            const date = dateInput && dateInput.value ? dateInput.value : new Date().toISOString().split('T')[0];
+            const date = dateInput && dateInput.value
+                ? dateInput.value
+                : new Date().toISOString().split('T')[0];
             const note = noteInput ? noteInput.value.trim() : '';
 
-            if (!pocketId || amount <= 0) {
-                showToast('Pilih pos dan masukkan nominal');
+            if (!pocketId) {
+                showToast('Pilih menu hutang/piutang terlebih dahulu');
+                return;
+            }
+            if (amount <= 0) {
+                showToast('Masukkan nominal yang valid');
                 return;
             }
 
-            if (currentDebtActionMode === 'pay') {
-                const currentBal = calculateDebtPocketBalance(pocketId);
-                if (amount > currentBal) {
-                    showToast('Nominal melebihi sisa saldo pos');
-                    return;
-                }
-            }
-
-            const pocket = state.debtPockets.find(p => p.id === pocketId);
             state.debts.unshift({
                 id: 'debt_' + Date.now(),
                 pocketId,
-                type: pocket ? pocket.type : 'debt',
-                person: pocket ? pocket.name : 'Pos Hutang',
-                action: currentDebtActionMode,
+                action: currentDebtActionMode === 'pay' ? 'pay' : 'add',
                 amount,
                 date,
                 note
             });
 
+            saveState();
             if (amountInput) amountInput.value = '';
             if (noteInput) noteInput.value = '';
-            saveState();
             renderDebtsList();
-            showToast(currentDebtActionMode === 'pay' ? 'Pembayaran tercatat' : 'Catatan hutang/piutang tersimpan');
+            showToast(currentDebtActionMode === 'pay' ? 'Pembayaran / pengurangan tersimpan' : 'Catatan hutang/piutang tersimpan');
         }
 
-        function deleteDebtById(id) {
-            state.debts = state.debts.filter(d => d.id !== id);
+        function deleteDebtEntryById(id) {
+            state.debts = state.debts.filter(item => item.id !== id);
             openMenuId = null;
             confirmDeleteId = null;
             saveState();
             renderDebtsList();
-            showToast('Catatan dihapus');
+            showToast('Catatan hutang/piutang dihapus');
         }
 
         function renderDebtsList() {
             setDebtActionMode(currentDebtActionMode);
+
             const dateInput = document.getElementById('debt-date');
             if (dateInput && !dateInput.value) {
                 dateInput.value = new Date().toISOString().split('T')[0];
@@ -1987,35 +2029,35 @@
 
             const selectEl = document.getElementById('debt-pocket-select');
             if (selectEl) {
-                const prev = selectEl.value;
+                const prevVal = selectEl.value;
                 selectEl.innerHTML = state.debtPockets
-                    .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)} (${p.type === 'receivable' ? 'Piutang' : 'Hutang'})</option>`)
+                    .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`)
                     .join('');
-                if (prev && state.debtPockets.some(p => p.id === prev)) {
-                    selectEl.value = prev;
+                if (prevVal && state.debtPockets.some(p => p.id === prevVal)) {
+                    selectEl.value = prevVal;
                 }
             }
 
-            const pocketsListEl = document.getElementById('debt-pockets-list');
-            if (pocketsListEl) {
-                pocketsListEl.innerHTML = state.debtPockets.map(p => {
-                    const bal = calculateDebtPocketBalance(p.id);
-                    const isHidden = !!p.hidden;
-                    const isReceivable = p.type === 'receivable';
+            const pocketsContainer = document.getElementById('debt-pockets-list');
+            if (pocketsContainer) {
+                pocketsContainer.innerHTML = state.debtPockets.map(pocket => {
+                    const pocketBalance = calculateDebtPocketBalance(pocket.id);
+                    const isHidden = !!pocket.hidden;
+                    const typeLabel = pocket.type === 'receivable' ? 'Piutang' : 'Hutang';
+
                     return `
                         <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3.5 flex items-center justify-between gap-2">
                             <div class="min-w-0">
                                 <div class="flex items-center gap-1.5">
-                                    <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(p.name)}</span>
-                                    <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${isReceivable ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'}">
-                                        ${isReceivable ? 'Piutang' : 'Hutang'}
-                                    </span>
+                                    <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(pocket.name)}</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-100/80 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-semibold shrink-0">${typeLabel}</span>
                                 </div>
-                                <span class="font-display font-extrabold text-base text-slate-900 dark:text-white mt-0.5 block">
-                                    ${formatMoneyDisplay(bal, isHidden)}
+                                <span class="font-display font-extrabold text-base text-blue-700 dark:text-blue-300 mt-0.5 block">
+                                    ${formatMoneyDisplay(pocketBalance, isHidden)}
                                 </span>
                             </div>
-                            <button type="button" onclick="toggleDebtPocketVisibility('${p.id}')" aria-label="Sembunyikan saldo ${escapeHtml(p.name)}" class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors">
+
+                            <button type="button" onclick="toggleDebtPocketVisibility('${pocket.id}')" aria-label="Sembunyikan nominal ${escapeHtml(pocket.name)}" class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors shrink-0">
                                 <i data-lucide="${isHidden ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>
                             </button>
                         </div>
@@ -2024,59 +2066,204 @@
             }
 
             const listEl = document.getElementById('debts-list');
-            if (!listEl) return;
+            if (listEl) {
+                if (!state.debts.length) {
+                    listEl.innerHTML = `<div class="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 p-4 text-center text-xs text-slate-500">Belum ada catatan hutang atau piutang.</div>`;
+                } else {
+                    listEl.innerHTML = state.debts.map(item => {
+                        const pocket = state.debtPockets.find(p => p.id === item.pocketId);
+                        const isPay = item.action === 'pay';
+                        const menuKey = 'debt_' + item.id;
+                        const isMenuOpen = openMenuId === menuKey;
+                        const isConfirming = confirmDeleteId === item.id;
 
-            if (!state.debts.length) {
-                listEl.innerHTML = `<div class="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 p-5 text-center text-xs text-slate-500">Belum ada mutasi hutang atau piutang.</div>`;
-                lucide.createIcons();
-                return;
+                        return `
+                            <div class="relative rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3 flex items-center justify-between gap-2">
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(pocket ? pocket.name : 'Pos Hutang')}</span>
+                                        <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${isPay ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'}">
+                                            ${isPay ? 'Bayar / Kurang' : 'Catat'}
+                                        </span>
+                                        <span class="text-[10px] text-slate-400">• ${escapeHtml(item.date)}</span>
+                                    </div>
+                                    ${item.note ? `<p class="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">${escapeHtml(item.note)}</p>` : ''}
+                                </div>
+
+                                <div class="flex items-center gap-1.5 shrink-0">
+                                    <span class="font-display font-bold text-xs ${isPay ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-700 dark:text-blue-300'}">
+                                        ${isPay ? '-' : '+'}${formatRupiah(item.amount)}
+                                    </span>
+                                    <button type="button" onclick="toggleRowMenu('${menuKey}', event)" class="p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-700 text-slate-500">
+                                        <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+
+                                ${isMenuOpen ? `
+                                    <div onclick="event.stopPropagation()" class="absolute right-3 top-11 z-20 w-32 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-1">
+                                        ${!isConfirming ? `
+                                            <button type="button" onclick="requestDeleteItem('${item.id}', event)" class="w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50">
+                                                Hapus
+                                            </button>
+                                        ` : `
+                                            <button type="button" onclick="deleteDebtEntryById('${item.id}')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-600 text-white">
+                                                Yakin Hapus?
+                                            </button>
+                                        `}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    }).join('');
+                }
             }
 
-            listEl.innerHTML = state.debts.map(d => {
-                const isPay = d.action === 'pay';
-                const menuKey = 'debt_' + d.id;
-                const isMenuOpen = openMenuId === menuKey;
-                const isConfirming = confirmDeleteId === d.id;
-
-                return `
-                    <div class="relative rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3 flex items-center justify-between gap-2">
-                        <div class="min-w-0">
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(d.person)}</span>
-                                <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${isPay ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'}">
-                                    ${isPay ? 'Bayar/Kurang' : 'Tambah'}
-                                </span>
-                            </div>
-                            <p class="text-[11px] text-slate-500 truncate mt-0.5">${escapeHtml(d.date)}${d.note ? ' • ' + escapeHtml(d.note) : ''}</p>
-                        </div>
-
-                        <div class="flex items-center gap-1.5 shrink-0">
-                            <span class="font-display font-bold text-xs ${isPay ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
-                                ${isPay ? '-' : '+'}${formatRupiah(d.amount)}
-                            </span>
-                            <button type="button" onclick="toggleRowMenu('${menuKey}', event)" class="p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-700 text-slate-500">
-                                <i data-lucide="more-vertical" class="w-4 h-4"></i>
-                            </button>
-                        </div>
-
-                        ${isMenuOpen ? `
-                            <div onclick="event.stopPropagation()" class="absolute right-3 top-11 z-20 w-36 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-1.5">
-                                ${!isConfirming ? `
-                                    <button type="button" onclick="requestDeleteItem('${d.id}', event)" class="w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50">
-                                        Hapus
-                                    </button>
-                                ` : `
-                                    <button type="button" onclick="deleteDebtById('${d.id}')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-600 text-white">
-                                        Yakin Hapus?
-                                    </button>
-                                `}
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-            }).join('');
-
             lucide.createIcons();
+        }
+
+        // Grafik & Diagram Rekapan di Beranda
+        function renderDashboardCharts(periodTxs, totalIncome, totalExpense, cashBalance, appBalance) {
+            if (typeof Chart === 'undefined') return;
+
+            const isDark = document.documentElement.classList.contains('dark');
+            const labelColor = isDark ? '#cbd5e1' : '#334155';
+            const gridColor = isDark ? 'rgba(148, 163, 184, 0.14)' : 'rgba(37, 99, 235, 0.1)';
+
+            const pInc = periodTxs.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+            const pExp = periodTxs.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+
+            const cfCanvas = document.getElementById('dashboard-cashflow-chart');
+            if (cfCanvas) {
+                if (cashflowChartInstance) {
+                    cashflowChartInstance.destroy();
+                }
+                cashflowChartInstance = new Chart(cfCanvas.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: ['Uang Masuk', 'Uang Keluar', 'Cash', 'Aplikasi'],
+                        datasets: [{
+                            label: 'Nominal (Rp)',
+                            data: [pInc, pExp, Math.max(0, cashBalance), Math.max(0, appBalance)],
+                            backgroundColor: ['#10b981', '#f43f5e', '#2563eb', '#0284c7'],
+                            borderRadius: 8,
+                            maxBarThickness: 34
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: labelColor, font: { size: 10 } },
+                                grid: { display: false }
+                            },
+                            y: {
+                                ticks: {
+                                    color: labelColor,
+                                    font: { size: 10 },
+                                    callback: val => Number(val).toLocaleString('id-ID')
+                                },
+                                grid: { color: gridColor }
+                            }
+                        }
+                    }
+                });
+            }
+
+            const catTotals = {};
+            periodTxs
+                .filter(t => t.type === 'expense')
+                .forEach(t => {
+                    catTotals[t.category] = (catTotals[t.category] || 0) + (Number(t.amount) || 0);
+                });
+
+            const catCanvas = document.getElementById('dashboard-category-chart');
+            if (catCanvas) {
+                if (categoryChartInstance) {
+                    categoryChartInstance.destroy();
+                }
+                const entries = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+                const hasData = entries.length > 0;
+                const palette = ['#2563eb', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#f43f5e', '#14b8a6', '#6366f1'];
+
+                categoryChartInstance = new Chart(catCanvas.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: hasData ? entries.map(e => e[0]) : ['Belum Ada Pengeluaran'],
+                        datasets: [{
+                            data: hasData ? entries.map(e => e[1]) : [1],
+                            backgroundColor: hasData
+                                ? entries.map((_, idx) => palette[idx % palette.length])
+                                : [isDark ? '#1e293b' : '#dbeafe'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '58%',
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    color: labelColor,
+                                    boxWidth: 10,
+                                    font: { size: 10 }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // Saran Keuangan Ke Depannya di Beranda
+        function renderDashboardSuggestions(periodTxs, totalIncome, totalExpense, cashBalance, appBalance) {
+            const listEl = document.getElementById('dashboard-suggestions-list');
+            if (!listEl) return;
+
+            const suggestions = [];
+            const pInc = periodTxs.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+            const pExp = periodTxs.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+
+            if (pExp > pInc && pInc > 0) {
+                suggestions.push(`Pengeluaran pada periode ini (${formatRupiah(pExp)}) melebihi pemasukan (${formatRupiah(pInc)}). Tekan belanja non-prioritas ke depannya.`);
+            } else if (pInc > 0 && pExp <= pInc * 0.7) {
+                const surplus = pInc - pExp;
+                suggestions.push(`Arus kas periode ini sehat dengan sisa ${formatRupiah(surplus)}. Alokasikan sebagian ke menu Tabungan.`);
+            }
+
+            const catTotals = {};
+            state.transactions
+                .filter(t => t.type === 'expense')
+                .forEach(t => {
+                    catTotals[t.category] = (catTotals[t.category] || 0) + (Number(t.amount) || 0);
+                });
+
+            const topCat = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0];
+            if (topCat && topCat[1] > 0) {
+                suggestions.push(`Kategori "${topCat[0]}" paling banyak terpakai (${formatRupiah(topCat[1])}). Evaluasi batas anggaran kategori tersebut di tab Akun.`);
+            }
+
+            if (cashBalance + appBalance <= 0) {
+                suggestions.push('Saldo cash dan aplikasi masih Rp 0. Catat pemasukan awal agar rencana pengeluaran dan tabungan lebih terukur.');
+            } else if (totalExpense === 0 && totalIncome > 0) {
+                suggestions.push('Catat setiap pengeluaran harian secara rutin agar grafik kategori dan saran keuangan semakin akurat.');
+            }
+
+            if (!suggestions.length) {
+                suggestions.push('Pertahankan pencatatan rutin masuk & keluar serta sisihkan dana tabungan secara konsisten setiap minggu.');
+            }
+
+            listEl.innerHTML = suggestions.slice(0, 3).map(msg => `
+                <div class="rounded-xl bg-white dark:bg-black border border-blue-100 dark:border-blue-900/70 px-3 py-2 text-[11px] leading-relaxed text-slate-700 dark:text-slate-200 flex items-start gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-600 mt-1.5 shrink-0"></span>
+                    <span>${escapeHtml(msg)}</span>
+                </div>
+            `).join('');
         }
 
         // Rekapan & Anggaran di Tab Akun
@@ -2125,9 +2312,15 @@
 
                     return `
                         <div class="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
-                            <div class="flex items-center justify-between text-xs">
-                                <span class="font-semibold text-slate-800 dark:text-slate-100">${escapeHtml(cat)}</span>
-                                <span class="text-[11px] text-slate-500">${formatRupiah(spent)} / ${formatRupiah(limit)}</span>
+                            <div class="flex items-center justify-between text-xs gap-2">
+                                <span class="font-semibold text-slate-800 dark:text-slate-100 truncate">${escapeHtml(cat)}</span>
+                                <span class="text-[11px] text-slate-500 shrink-0">${formatRupiah(spent)} / ${formatRupiah(limit)}</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <input type="text" id="budget-input-${encodeURIComponent(cat)}" inputmode="numeric" value="${limit > 0 ? Number(limit).toLocaleString('id-ID') : ''}" oninput="formatRupiahInput(this)" placeholder="Batas maksimal (Rp)" class="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold">
+                                <button type="button" onclick="saveCategoryBudget('${encodeURIComponent(cat)}')" class="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold shrink-0">
+                                    Simpan
+                                </button>
                             </div>
                             <div class="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                                 <div class="h-full rounded-full ${pct >= 90 ? 'bg-rose-500' : 'bg-blue-600'}" style="width: ${pct}%"></div>
@@ -2136,6 +2329,18 @@
                     `;
                 }).join('');
             }
+        }
+
+        function saveCategoryBudget(encodedCategory) {
+            const category = decodeURIComponent(encodedCategory);
+            const input = document.getElementById(`budget-input-${encodedCategory}`);
+            if (!input) return;
+
+            const newLimit = parseRupiahInput(input.value);
+            state.budgets[category] = newLimit;
+            saveState();
+            renderAccountRecap();
+            showToast(`Batas anggaran ${category} diperbarui`);
         }
 
         // Modal Pengaturan Akun & Ganti Akun Terpisah
