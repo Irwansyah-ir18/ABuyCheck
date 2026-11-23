@@ -631,6 +631,53 @@
         </div>
     </div>
 
+    <!-- Modal Edit Mutasi & Sumber Tabungan -->
+    <div id="edit-saving-entry-modal" class="fixed inset-0 z-50 hidden bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3">
+        <div class="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 space-y-3 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 class="font-display font-bold text-sm text-slate-900 dark:text-white">Edit Mutasi & Sumber Tabungan</h3>
+                <button type="button" onclick="closeEditSavingEntryModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <form onsubmit="handleEditSavingEntrySubmit(event)" class="space-y-2.5">
+                <input type="hidden" id="edit-saving-entry-id">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Jenis Mutasi</label>
+                    <select id="edit-saving-type" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium">
+                        <option value="deposit">Setor Tabungan</option>
+                        <option value="withdraw">Tarik Tabungan</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Menu Tabungan</label>
+                    <select id="edit-saving-pocket" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium"></select>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Nominal (Rp)</label>
+                        <input type="text" id="edit-saving-amount" inputmode="numeric" required oninput="formatRupiahInput(this)" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Tanggal</label>
+                        <input type="date" id="edit-saving-date" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Sumber / Dari Siapa</label>
+                    <input type="text" id="edit-saving-source" list="saving-source-options" placeholder="Contoh: Irwan, Silvi..." class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Catatan</label>
+                    <input type="text" id="edit-saving-note" placeholder="Catatan..." class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                </div>
+                <button type="submit" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">
+                    Simpan Perubahan
+                </button>
+            </form>
+        </div>
+    </div>
+
     <!-- Modal Tambah Pos Hutang / Piutang -->
     <div id="add-debt-pocket-modal" class="fixed inset-0 z-50 hidden bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3">
         <div class="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 space-y-3 shadow-2xl">
@@ -1721,6 +1768,80 @@
             showToast('Mutasi tabungan dihapus');
         }
 
+        function openEditSavingEntryModal(entryId) {
+            const entry = state.savingsEntries.find(item => item.id === entryId);
+            if (!entry) return;
+            openMenuId = null;
+            confirmDeleteId = null;
+
+            const pocketSelect = document.getElementById('edit-saving-pocket');
+            if (pocketSelect) {
+                pocketSelect.innerHTML = state.savingsPockets
+                    .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`)
+                    .join('');
+                pocketSelect.value = entry.pocketId || (state.savingsPockets[0] && state.savingsPockets[0].id) || '';
+            }
+
+            const idInput = document.getElementById('edit-saving-entry-id');
+            const typeSelect = document.getElementById('edit-saving-type');
+            const amtInput = document.getElementById('edit-saving-amount');
+            const dateInput = document.getElementById('edit-saving-date');
+            const srcInput = document.getElementById('edit-saving-source');
+            const noteInput = document.getElementById('edit-saving-note');
+
+            if (idInput) idInput.value = entry.id;
+            if (typeSelect) typeSelect.value = entry.type === 'withdraw' ? 'withdraw' : 'deposit';
+            if (amtInput) amtInput.value = Number(entry.amount || 0).toLocaleString('id-ID');
+            if (dateInput) dateInput.value = entry.date || new Date().toISOString().split('T')[0];
+            if (srcInput) srcInput.value = entry.source || '';
+            if (noteInput) noteInput.value = entry.note || '';
+
+            const modal = document.getElementById('edit-saving-entry-modal');
+            if (modal) modal.classList.remove('hidden');
+            renderSavingsTab();
+            lucide.createIcons();
+        }
+
+        function closeEditSavingEntryModal() {
+            const modal = document.getElementById('edit-saving-entry-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function handleEditSavingEntrySubmit(e) {
+            e.preventDefault();
+            const entryId = document.getElementById('edit-saving-entry-id')?.value || '';
+            const idx = state.savingsEntries.findIndex(item => item.id === entryId);
+            if (idx < 0) return;
+
+            const nextType = document.getElementById('edit-saving-type')?.value === 'withdraw' ? 'withdraw' : 'deposit';
+            const nextPocketId = document.getElementById('edit-saving-pocket')?.value || state.savingsEntries[idx].pocketId;
+            const nextAmount = parseRupiahInput(document.getElementById('edit-saving-amount')?.value || '');
+            const nextDate = document.getElementById('edit-saving-date')?.value || new Date().toISOString().split('T')[0];
+            const nextSource = toTitleCase(document.getElementById('edit-saving-source')?.value || '');
+            const nextNote = (document.getElementById('edit-saving-note')?.value || '').trim();
+
+            if (nextAmount <= 0) {
+                showToast('Masukkan nominal yang valid');
+                return;
+            }
+
+            state.savingsEntries[idx] = {
+                ...state.savingsEntries[idx],
+                type: nextType,
+                pocketId: nextPocketId,
+                amount: nextAmount,
+                date: nextDate,
+                source: nextSource,
+                note: nextNote
+            };
+
+            expandedSavingPocketIds[nextPocketId] = true;
+            saveState();
+            closeEditSavingEntryModal();
+            renderSavingsTab();
+            showToast('Mutasi & sumber tabungan diperbarui');
+        }
+
         function openAddSavingPocketModal() {
             const modal = document.getElementById('add-pocket-modal');
             const input = document.getElementById('new-pocket-name');
@@ -1794,6 +1915,9 @@
                         ${isMenuOpen ? `
                             <div onclick="event.stopPropagation()" class="absolute right-3 top-11 z-20 w-32 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-1">
                                 ${!isConfirming ? `
+                                    <button type="button" onclick="openEditSavingEntryModal('${entry.id}')" class="w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                                        Edit
+                                    </button>
                                     <button type="button" onclick="requestDeleteItem('${entry.id}', event)" class="w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50">
                                         Hapus
                                     </button>
