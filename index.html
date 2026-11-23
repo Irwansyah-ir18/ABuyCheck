@@ -691,6 +691,7 @@
         let currentSavingType = 'deposit';
         let currentDebtActionMode = 'add';
         let currentRecapPeriod = 'daily';
+        let expandedSavingPocketIds = {};
         let openMenuId = null;
         let confirmDeleteId = null;
 
@@ -1659,6 +1660,11 @@
             renderSavingsTab();
         }
 
+        function toggleSavingPocketHistory(pocketId) {
+            expandedSavingPocketIds[pocketId] = !expandedSavingPocketIds[pocketId];
+            renderSavingsTab();
+        }
+
         function openAddSavingPocketModal() {
             const modal = document.getElementById('add-pocket-modal');
             const input = document.getElementById('new-pocket-name');
@@ -1684,6 +1690,7 @@
                 hidden: false
             };
             state.savingsPockets.push(newPocket);
+            expandedSavingPocketIds[newPocket.id] = true;
             saveState();
             closeAddSavingPocketModal();
             renderSavingsTab();
@@ -1700,6 +1707,57 @@
             saveState();
             renderSavingsTab();
             showToast('Catatan tabungan dihapus');
+        }
+
+        function renderSavingsPocketEntriesHtml(pocketId) {
+            const entries = state.savingsEntries.filter(entry => entry.pocketId === pocketId);
+            if (!entries.length) {
+                return `<div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 p-3 text-center text-[11px] text-slate-500">Belum ada riwayat mutasi pada tabungan ini.</div>`;
+            }
+
+            return entries.map(entry => {
+                const isDeposit = entry.type === 'deposit';
+                const menuKey = 'sav_' + entry.id;
+                const isMenuOpen = openMenuId === menuKey;
+                const isConfirming = confirmDeleteId === entry.id;
+
+                return `
+                    <div class="relative rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-2.5 flex items-center justify-between gap-2">
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${isDeposit ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'}">
+                                    ${isDeposit ? 'Setor' : 'Tarik'}
+                                </span>
+                                <span class="text-[11px] text-slate-500 truncate">${escapeHtml(entry.date)}</span>
+                            </div>
+                            ${entry.note ? `<p class="text-[11px] text-slate-600 dark:text-slate-300 truncate mt-0.5">${escapeHtml(entry.note)}</p>` : ''}
+                        </div>
+
+                        <div class="flex items-center gap-1 shrink-0">
+                            <span class="font-display font-bold text-xs ${isDeposit ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}">
+                                ${isDeposit ? '+' : '-'}${formatRupiah(entry.amount)}
+                            </span>
+                            <button type="button" onclick="toggleRowMenu('${menuKey}', event)" class="p-1 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-800 text-slate-500">
+                                <i data-lucide="more-vertical" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+
+                        ${isMenuOpen ? `
+                            <div onclick="event.stopPropagation()" class="absolute right-2.5 top-9 z-20 w-32 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-1">
+                                ${!isConfirming ? `
+                                    <button type="button" onclick="requestDeleteItem('${entry.id}', event)" class="w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50">
+                                        Hapus
+                                    </button>
+                                ` : `
+                                    <button type="button" onclick="deleteSavingEntryById('${entry.id}')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-600 text-white">
+                                        Yakin Hapus?
+                                    </button>
+                                `}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
         }
 
         function renderSavingsTab() {
@@ -1725,17 +1783,42 @@
                 pocketsContainer.innerHTML = state.savingsPockets.map(pocket => {
                     const pocketBalance = calculatePocketBalance(pocket.id);
                     const isHidden = !!pocket.hidden;
+                    const isExpanded = !!expandedSavingPocketIds[pocket.id];
+                    const entryCount = state.savingsEntries.filter(e => e.pocketId === pocket.id).length;
+
                     return `
-                        <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3.5 flex items-center justify-between gap-2">
-                            <div class="min-w-0">
-                                <span class="text-xs font-bold text-slate-900 dark:text-white block truncate">${escapeHtml(pocket.name)}</span>
-                                <span class="font-display font-extrabold text-base text-blue-700 dark:text-blue-300 mt-0.5 block">
-                                    ${formatMoneyDisplay(pocketBalance, isHidden)}
-                                </span>
+                        <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+                            <div class="p-3.5 flex items-center justify-between gap-2">
+                                <button type="button" onclick="toggleSavingPocketHistory('${pocket.id}')" class="flex-1 min-w-0 text-left flex items-center justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(pocket.name)}</span>
+                                            <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-100/80 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-semibold shrink-0">
+                                                ${entryCount} mutasi
+                                            </span>
+                                        </div>
+                                        <span class="font-display font-extrabold text-base text-blue-700 dark:text-blue-300 mt-0.5 block">
+                                            ${formatMoneyDisplay(pocketBalance, isHidden)}
+                                        </span>
+                                    </div>
+                                    <i data-lucide="${isExpanded ? 'chevron-up' : 'chevron-down'}" class="w-4 h-4 text-slate-400 shrink-0"></i>
+                                </button>
+
+                                <button type="button" onclick="togglePocketVisibility('${pocket.id}'); event.stopPropagation();" aria-label="Sembunyikan saldo ${escapeHtml(pocket.name)}" class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors shrink-0">
+                                    <i data-lucide="${isHidden ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>
+                                </button>
                             </div>
-                            <button type="button" onclick="togglePocketVisibility('${pocket.id}')" aria-label="Sembunyikan saldo ${escapeHtml(pocket.name)}" class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors">
-                                <i data-lucide="${isHidden ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>
-                            </button>
+
+                            ${isExpanded ? `
+                                <div class="px-3.5 pb-3.5 pt-2.5 border-t border-slate-200/80 dark:border-slate-800 space-y-2">
+                                    <div class="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                        Riwayat Mutasi ${escapeHtml(pocket.name)}
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        ${renderSavingsPocketEntriesHtml(pocket.id)}
+                                    </div>
+                                </div>
+                            ` : ''}
                         </div>
                     `;
                 }).join('');
@@ -1743,54 +1826,12 @@
 
             const historyContainer = document.getElementById('saving-history-list');
             if (historyContainer) {
-                if (!state.savingsEntries.length) {
-                    historyContainer.innerHTML = `<div class="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 p-5 text-center text-xs text-slate-500">Belum ada catatan mutasi tabungan.</div>`;
-                } else {
-                    historyContainer.innerHTML = state.savingsEntries.map(entry => {
-                        const pocket = state.savingsPockets.find(p => p.id === entry.pocketId);
-                        const isDeposit = entry.type === 'deposit';
-                        const menuKey = 'sav_' + entry.id;
-                        const isMenuOpen = openMenuId === menuKey;
-                        const isConfirming = confirmDeleteId === entry.id;
-
-                        return `
-                            <div class="relative rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3 flex items-center justify-between gap-2">
-                                <div class="min-w-0">
-                                    <div class="flex items-center gap-1.5">
-                                        <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(pocket ? pocket.name : 'Tabungan')}</span>
-                                        <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${isDeposit ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'}">
-                                            ${isDeposit ? 'Setor' : 'Tarik'}
-                                        </span>
-                                    </div>
-                                    <p class="text-[11px] text-slate-500 truncate mt-0.5">${escapeHtml(entry.date)}${entry.note ? ' • ' + escapeHtml(entry.note) : ''}</p>
-                                </div>
-
-                                <div class="flex items-center gap-1.5 shrink-0">
-                                    <span class="font-display font-bold text-xs ${isDeposit ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}">
-                                        ${isDeposit ? '+' : '-'}${formatRupiah(entry.amount)}
-                                    </span>
-                                    <button type="button" onclick="toggleRowMenu('${menuKey}', event)" class="p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-700 text-slate-500">
-                                        <i data-lucide="more-vertical" class="w-4 h-4"></i>
-                                    </button>
-                                </div>
-
-                                ${isMenuOpen ? `
-                                    <div onclick="event.stopPropagation()" class="absolute right-3 top-11 z-20 w-36 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-1.5">
-                                        ${!isConfirming ? `
-                                            <button type="button" onclick="requestDeleteItem('${entry.id}', event)" class="w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50">
-                                                Hapus
-                                            </button>
-                                        ` : `
-                                            <button type="button" onclick="deleteSavingEntryById('${entry.id}')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-600 text-white">
-                                                Yakin Hapus?
-                                            </button>
-                                        `}
-                                    </div>
-                                ` : ''}
-                            </div>
-                        `;
-                    }).join('');
+                historyContainer.innerHTML = '';
+                const historyHeading = historyContainer.previousElementSibling;
+                if (historyHeading && historyHeading.tagName === 'H3') {
+                    historyHeading.classList.add('hidden');
                 }
+                historyContainer.classList.add('hidden');
             }
 
             lucide.createIcons();
