@@ -458,6 +458,7 @@
                             <option value="all">Semua Jenis</option>
                             <option value="income">Uang Masuk</option>
                             <option value="expense">Uang Keluar</option>
+                            <option value="transfer">Pindah Saldo</option>
                         </select>
                         <select id="filter-category" onchange="renderTransactionsList()" class="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs"></select>
                     </div>
@@ -567,12 +568,15 @@
 
             <form id="transaction-form" onsubmit="handleTransactionSubmit(event)" class="space-y-3">
                 <input type="hidden" id="tx-edit-id">
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-3 gap-1.5">
                     <button type="button" id="btn-type-income" onclick="setTransactionType('income')" class="py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
                         Uang Masuk
                     </button>
                     <button type="button" id="btn-type-expense" onclick="setTransactionType('expense')" class="py-2 rounded-xl text-xs font-bold bg-rose-600 text-white">
                         Uang Keluar
+                    </button>
+                    <button type="button" id="btn-type-transfer" onclick="setTransactionType('transfer')" class="py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+                        Pindah Saldo
                     </button>
                 </div>
 
@@ -581,15 +585,35 @@
                     <input type="text" id="tx-amount" inputmode="numeric" required placeholder="25.000" oninput="formatRupiahInput(this)" class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold">
                 </div>
 
-                <div class="grid grid-cols-2 gap-2">
+                <div id="tx-regular-fields" class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Kategori</label>
-                        <select id="tx-category" onchange="handleTxCategoryChange()" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"></select>
+                        <select id="tx-category" onchange="handleTxCategoryChange()" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"></select>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Sumber / Aplikasi</label>
-                        <select id="tx-wallet" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"></select>
+                        <select id="tx-wallet" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"></select>
                     </div>
+                </div>
+
+                <div id="tx-transfer-fields" class="hidden space-y-2">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Dari Saldo</label>
+                            <select id="tx-from-wallet" onchange="handleTransferWalletChange('from')" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Ke Saldo</label>
+                            <select id="tx-to-wallet" onchange="handleTransferWalletChange('to')" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"></select>
+                        </div>
+                    </div>
+                    <div id="tx-transfer-source-box" class="hidden">
+                        <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Asal / Sumber Tabungan (Opsional)</label>
+                        <input type="text" id="tx-transfer-source" list="saving-source-options" placeholder="Contoh: Irwan, Silvi, Gaji..." class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                    </div>
+                    <p id="tx-transfer-hint" class="text-[11px] text-blue-600 dark:text-blue-400 font-medium">
+                        Pindah saldo (termasuk ke/dari tabungan) tidak dihitung sebagai uang masuk maupun uang keluar.
+                    </p>
                 </div>
 
                 <div id="tx-custom-category-box" class="hidden">
@@ -1226,8 +1250,17 @@
             WALLETS.forEach(w => { balances[w.id] = 0; });
 
             state.transactions.forEach(tx => {
-                const walletId = balances.hasOwnProperty(tx.walletId) ? tx.walletId : 'cash';
                 const amt = Number(tx.amount) || 0;
+                if (tx.type === 'transfer') {
+                    if (balances.hasOwnProperty(tx.fromWalletId)) {
+                        balances[tx.fromWalletId] -= amt;
+                    }
+                    if (balances.hasOwnProperty(tx.toWalletId)) {
+                        balances[tx.toWalletId] += amt;
+                    }
+                    return;
+                }
+                const walletId = balances.hasOwnProperty(tx.walletId) ? tx.walletId : 'cash';
                 if (tx.type === 'income') {
                     balances[walletId] += amt;
                 } else {
@@ -1359,22 +1392,41 @@
                     recentEl.innerHTML = `<div class="rounded-xl bg-blue-50/40 dark:bg-blue-950/25 border border-blue-100 dark:border-blue-900/60 p-4 text-center text-xs text-slate-500 dark:text-slate-400">Belum ada transaksi terbaru.</div>`;
                 } else {
                     recentEl.innerHTML = recentTxs.map(tx => {
-                        const wallet = WALLETS.find(w => w.id === tx.walletId) || WALLETS[0];
+                        const isTransfer = tx.type === 'transfer';
                         const isIncome = tx.type === 'income';
+                        const fromLabel = getTransferNodeLabel(tx.fromWalletId);
+                        const toLabel = getTransferNodeLabel(tx.toWalletId);
+                        const wallet = isTransfer
+                            ? (WALLETS.find(w => w.id === tx.fromWalletId) || WALLETS.find(w => w.id === tx.toWalletId) || WALLETS[0])
+                            : (WALLETS.find(w => w.id === tx.walletId) || WALLETS[0]);
+                        const titleText = isTransfer
+                            ? `${fromLabel} → ${toLabel}`
+                            : tx.category;
+                        const subText = isTransfer
+                            ? (tx.note || tx.category || 'Pindah Saldo')
+                            : (tx.note || wallet.name);
+                        const amountColor = isTransfer
+                            ? 'text-blue-600 dark:text-blue-400'
+                            : (isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400');
+                        const amountPrefix = isTransfer ? '⇄ ' : (isIncome ? '+' : '-');
+                        const iconHtml = isTransfer && (isSavingTransferId(tx.fromWalletId) || isSavingTransferId(tx.toWalletId))
+                            ? `<div class="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-display font-extrabold text-[10px] tracking-tight shrink-0">TAB</div>`
+                            : getWalletLogoSvg(wallet.id, 'w-8 h-8');
+
                         return `
                             <div class="rounded-xl bg-blue-50/35 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/60 p-2.5 flex items-center justify-between gap-2">
                                 <div class="flex items-center gap-2.5 min-w-0">
-                                    ${getWalletLogoSvg(wallet.id, 'w-8 h-8')}
+                                    ${iconHtml}
                                     <div class="min-w-0">
                                         <div class="flex items-center gap-1.5">
-                                            <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(tx.category)}</span>
+                                            <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(titleText)}</span>
                                             <span class="text-[10px] text-slate-400">• ${escapeHtml(tx.date)}</span>
                                         </div>
-                                        <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtml(tx.note || wallet.name)}</p>
+                                        <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtml(subText)}</p>
                                     </div>
                                 </div>
-                                <span class="font-display font-bold text-xs shrink-0 ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
-                                    ${isIncome ? '+' : '-'}${formatRupiah(tx.amount)}
+                                <span class="font-display font-bold text-xs shrink-0 ${amountColor}">
+                                    ${amountPrefix}${formatRupiah(tx.amount)}
                                 </span>
                             </div>
                         `;
@@ -1420,6 +1472,8 @@
             const amountInput = document.getElementById('tx-amount');
             const catInput = document.getElementById('tx-category');
             const walletInput = document.getElementById('tx-wallet');
+            const fromWalletInput = document.getElementById('tx-from-wallet');
+            const toWalletInput = document.getElementById('tx-to-wallet');
             const dateInput = document.getElementById('tx-date');
             const noteInput = document.getElementById('tx-note');
 
@@ -1428,18 +1482,26 @@
                 if (editIdInput) editIdInput.value = editTx.id;
                 setTransactionType(editTx.type || 'expense');
                 if (amountInput) amountInput.value = Number(editTx.amount || 0).toLocaleString('id-ID');
-                if (catInput) {
-                    const allowedList = (editTx.type === 'income') ? getAllIncomeCategories() : getAllExpenseCategories();
-                    if (editTx.category && !allowedList.includes(editTx.category)) {
-                        catInput.value = CUSTOM_CATEGORY_OPTION;
-                        const customInput = document.getElementById('tx-custom-category');
-                        if (customInput) customInput.value = editTx.category;
-                    } else {
-                        catInput.value = editTx.category || allowedList[0];
+                if (editTx.type === 'transfer') {
+                    if (fromWalletInput) fromWalletInput.value = editTx.fromWalletId || 'dana';
+                    if (toWalletInput) toWalletInput.value = editTx.toWalletId || 'cash';
+                    const trfSourceInput = document.getElementById('tx-transfer-source');
+                    if (trfSourceInput) trfSourceInput.value = editTx.transferSource || '';
+                    updateTransferHintText();
+                } else {
+                    if (catInput) {
+                        const allowedList = (editTx.type === 'income') ? getAllIncomeCategories() : getAllExpenseCategories();
+                        if (editTx.category && !allowedList.includes(editTx.category)) {
+                            catInput.value = CUSTOM_CATEGORY_OPTION;
+                            const customInput = document.getElementById('tx-custom-category');
+                            if (customInput) customInput.value = editTx.category;
+                        } else {
+                            catInput.value = editTx.category || allowedList[0];
+                        }
+                        handleTxCategoryChange();
                     }
-                    handleTxCategoryChange();
+                    if (walletInput) walletInput.value = editTx.walletId || 'cash';
                 }
-                if (walletInput) walletInput.value = editTx.walletId || 'cash';
                 if (dateInput) dateInput.value = editTx.date || new Date().toISOString().split('T')[0];
                 if (noteInput) noteInput.value = editTx.note || '';
             } else {
@@ -1452,6 +1514,11 @@
                     handleTxCategoryChange();
                 }
                 if (walletInput) walletInput.value = 'cash';
+                if (fromWalletInput) fromWalletInput.value = 'dana';
+                if (toWalletInput) toWalletInput.value = 'cash';
+                const trfSourceInput = document.getElementById('tx-transfer-source');
+                if (trfSourceInput) trfSourceInput.value = '';
+                updateTransferHintText();
                 if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
                 if (noteInput) noteInput.value = '';
             }
@@ -1466,9 +1533,14 @@
         }
 
         function setTransactionType(type) {
-            currentTxType = type === 'income' ? 'income' : 'expense';
+            currentTxType = (type === 'income' || type === 'transfer') ? type : 'expense';
             const incBtn = document.getElementById('btn-type-income');
             const expBtn = document.getElementById('btn-type-expense');
+            const trfBtn = document.getElementById('btn-type-transfer');
+            const regularFields = document.getElementById('tx-regular-fields');
+            const transferFields = document.getElementById('tx-transfer-fields');
+            const customBox = document.getElementById('tx-custom-category-box');
+
             if (incBtn) {
                 incBtn.className = `py-2 rounded-xl text-xs font-bold border transition-colors ${
                     currentTxType === 'income'
@@ -1483,64 +1555,101 @@
                         : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                 }`;
             }
-            renderTxCategoryOptions();
-        }
-
-        function getAllIncomeCategories() {
-            const customFromHistory = (state && Array.isArray(state.transactions))
-                ? state.transactions
-                    .filter(t => t.type === 'income' && t.category && !INCOME_CATEGORIES.includes(t.category))
-                    .map(t => toTitleCase(t.category))
-                : [];
-            return Array.from(new Set([...INCOME_CATEGORIES, ...customFromHistory]));
-        }
-
-        function getAllExpenseCategories() {
-            const customFromHistory = (state && Array.isArray(state.transactions))
-                ? state.transactions
-                    .filter(t => t.type === 'expense' && t.category && !EXPENSE_CATEGORIES.includes(t.category))
-                    .map(t => toTitleCase(t.category))
-                : [];
-            return Array.from(new Set([...EXPENSE_CATEGORIES, ...customFromHistory]));
-        }
-
-        function renderTxCategoryOptions() {
-            const txCat = document.getElementById('tx-category');
-            if (!txCat) return;
-            const prevVal = txCat.value;
-
-            const catList = currentTxType === 'income' ? getAllIncomeCategories() : getAllExpenseCategories();
-            txCat.innerHTML = catList
-                .map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)
-                .join('') + `<option value="${CUSTOM_CATEGORY_OPTION}">+ Ketik Sendiri...</option>`;
-            if (catList.includes(prevVal) || prevVal === CUSTOM_CATEGORY_OPTION) {
-                txCat.value = prevVal;
+            if (trfBtn) {
+                trfBtn.className = `py-2 rounded-xl text-xs font-bold border transition-colors ${
+                    currentTxType === 'transfer'
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                }`;
             }
-            handleTxCategoryChange();
+
+            const isTransfer = currentTxType === 'transfer';
+            if (regularFields) regularFields.classList.toggle('hidden', isTransfer);
+            if (transferFields) transferFields.classList.toggle('hidden', !isTransfer);
+            if (isTransfer) {
+                if (customBox) customBox.classList.add('hidden');
+                updateTransferHintText();
+            } else {
+                renderTxCategoryOptions();
+            }
         }
 
-        function handleTxCategoryChange() {
-            const txCat = document.getElementById('tx-category');
-            const customBox = document.getElementById('tx-custom-category-box');
-            const customLabel = document.getElementById('tx-custom-category-label');
-            const customInput = document.getElementById('tx-custom-category');
-            if (!txCat || !customBox) return;
+        function handleTransferWalletChange(changedSide) {
+            const fromEl = document.getElementById('tx-from-wallet');
+            const toEl = document.getElementById('tx-to-wallet');
+            if (!fromEl || !toEl) return;
 
-            const isCustom = txCat.value === CUSTOM_CATEGORY_OPTION;
-            customBox.classList.toggle('hidden', !isCustom);
-            if (isCustom) {
-                if (customLabel) {
-                    customLabel.textContent = currentTxType === 'income'
-                        ? 'Ketik Nama Kategori Uang Masuk'
-                        : 'Ketik Nama Kategori Pengeluaran';
+            if (fromEl.value === toEl.value) {
+                if (changedSide === 'from') {
+                    toEl.value = fromEl.value === 'cash' ? 'dana' : 'cash';
+                } else {
+                    fromEl.value = toEl.value === 'cash' ? 'dana' : 'cash';
                 }
-                if (customInput) {
-                    customInput.placeholder = currentTxType === 'income'
-                        ? 'Contoh: Freelance, Komisi, Cashback...'
-                        : 'Contoh: Parkir, Pulsa, Service...';
-                }
-            } else if (customInput) {
-                customInput.value = '';
+            }
+            updateTransferHintText();
+        }
+
+        function updateTransferHintText() {
+            const fromEl = document.getElementById('tx-from-wallet');
+            const toEl = document.getElementById('tx-to-wallet');
+            const hintEl = document.getElementById('tx-transfer-hint');
+            const sourceBox = document.getElementById('tx-transfer-source-box');
+            if (!fromEl || !toEl || !hintEl) return;
+
+            const fromIsSaving = isSavingTransferId(fromEl.value);
+            const toIsSaving = isSavingTransferId(toEl.value);
+            if (sourceBox) {
+                sourceBox.classList.toggle('hidden', !fromIsSaving && !toIsSaving);
+            }
+
+            const fromName = getTransferNodeLabel(fromEl.value);
+            const toName = getTransferNodeLabel(toEl.value);
+            if (toIsSaving && !fromIsSaving) {
+                hintEl.textContent = `Setor ke ${toName} dari ${fromName} (masuk ke Pindah Saldo, tidak dihitung uang keluar).`;
+            } else if (fromIsSaving && !toIsSaving) {
+                hintEl.textContent = `Tarik dari ${fromName} ke ${toName} (masuk ke Pindah Saldo, tidak dihitung uang masuk).`;
+            } else if (fromIsSaving && toIsSaving) {
+                hintEl.textContent = `Pindah antar tabungan dari ${fromName} ke ${toName} (tidak dihitung keluar/masuk).`;
+            } else if (toEl.value === 'cash' && fromEl.value !== 'cash') {
+                hintEl.textContent = `Tarik tunai dari ${fromName} ke Cash (tidak dihitung sebagai pengeluaran).`;
+            } else if (fromEl.value === 'cash' && toEl.value !== 'cash') {
+                hintEl.textContent = `Setor tunai dari Cash ke ${toName} (tidak dihitung sebagai pemasukan/pengeluaran).`;
+            } else {
+                hintEl.textContent = `Pindah saldo dari ${fromName} ke ${toName} (total saldo tetap sama).`;
+            }
+        }
+
+        function syncSavingsEntriesFromTransfer(txId, fromId, toId, amount, date, sourceText, noteText) {
+            state.savingsEntries = state.savingsEntries.filter(item => item.linkedTransferTxId !== txId);
+
+            if (isSavingTransferId(fromId)) {
+                const pocketId = getPocketIdFromTransferId(fromId);
+                state.savingsEntries.unshift({
+                    id: 'sav_trf_out_' + txId,
+                    linkedTransferTxId: txId,
+                    pocketId,
+                    type: 'withdraw',
+                    amount,
+                    date,
+                    source: toTitleCase(sourceText || `Ke ${getTransferNodeLabel(toId)}`),
+                    note: noteText || `Pindah saldo ke ${getTransferNodeLabel(toId)}`
+                });
+                expandedSavingPocketIds[pocketId] = true;
+            }
+
+            if (isSavingTransferId(toId)) {
+                const pocketId = getPocketIdFromTransferId(toId);
+                state.savingsEntries.unshift({
+                    id: 'sav_trf_in_' + txId,
+                    linkedTransferTxId: txId,
+                    pocketId,
+                    type: 'deposit',
+                    amount,
+                    date,
+                    source: toTitleCase(sourceText || `Dari ${getTransferNodeLabel(fromId)}`),
+                    note: noteText || `Pindah saldo dari ${getTransferNodeLabel(fromId)}`
+                });
+                expandedSavingPocketIds[pocketId] = true;
             }
         }
 
@@ -1548,6 +1657,96 @@
             e.preventDefault();
             const editId = document.getElementById('tx-edit-id')?.value || '';
             const amount = parseRupiahInput(document.getElementById('tx-amount')?.value || '');
+            const date = document.getElementById('tx-date')?.value || new Date().toISOString().split('T')[0];
+            const note = (document.getElementById('tx-note')?.value || '').trim();
+
+            if (amount <= 0) {
+                showToast('Masukkan nominal yang valid');
+                return;
+            }
+
+            if (currentTxType === 'transfer') {
+                const fromWalletId = document.getElementById('tx-from-wallet')?.value || 'dana';
+                const toWalletId = document.getElementById('tx-to-wallet')?.value || 'cash';
+                const transferSource = toTitleCase(document.getElementById('tx-transfer-source')?.value || '');
+                if (fromWalletId === toWalletId) {
+                    showToast('Pilih sumber dan tujuan saldo yang berbeda');
+                    return;
+                }
+                if (isSavingTransferId(fromWalletId)) {
+                    const sourcePocketId = getPocketIdFromTransferId(fromWalletId);
+                    let availableSaving = calculatePocketBalance(sourcePocketId);
+                    if (editId) {
+                        const prevLinked = state.savingsEntries.find(s => s.linkedTransferTxId === editId && s.pocketId === sourcePocketId && s.type === 'withdraw');
+                        if (prevLinked) availableSaving += Number(prevLinked.amount) || 0;
+                    }
+                    if (amount > availableSaving) {
+                        showToast('Saldo tabungan asal tidak mencukupi');
+                        return;
+                    }
+                }
+
+                const fromName = getTransferNodeLabel(fromWalletId);
+                const toName = getTransferNodeLabel(toWalletId);
+                let autoLabel = 'Pindah Saldo';
+                if (isSavingTransferId(toWalletId) && !isSavingTransferId(fromWalletId)) {
+                    autoLabel = 'Setor Tabungan';
+                } else if (isSavingTransferId(fromWalletId) && !isSavingTransferId(toWalletId)) {
+                    autoLabel = 'Tarik Tabungan';
+                } else if (isSavingTransferId(fromWalletId) && isSavingTransferId(toWalletId)) {
+                    autoLabel = 'Pindah Tabungan';
+                } else if (toWalletId === 'cash') {
+                    autoLabel = 'Tarik Tunai';
+                } else if (fromWalletId === 'cash') {
+                    autoLabel = 'Setor Tunai';
+                }
+                const transferNote = note || `${fromName} → ${toName}`;
+
+                if (editId) {
+                    const idx = state.transactions.findIndex(t => t.id === editId);
+                    if (idx >= 0) {
+                        state.transactions[idx] = {
+                            ...state.transactions[idx],
+                            type: 'transfer',
+                            amount,
+                            category: autoLabel,
+                            fromWalletId,
+                            toWalletId,
+                            walletId: fromWalletId,
+                            transferSource,
+                            date,
+                            note: transferNote
+                        };
+                    }
+                    syncSavingsEntriesFromTransfer(editId, fromWalletId, toWalletId, amount, date, transferSource, note);
+                    showToast('Pindah saldo diperbarui');
+                } else {
+                    const newTxId = 'tx_' + Date.now();
+                    state.transactions.unshift({
+                        id: newTxId,
+                        type: 'transfer',
+                        amount,
+                        category: autoLabel,
+                        fromWalletId,
+                        toWalletId,
+                        walletId: fromWalletId,
+                        transferSource,
+                        date,
+                        note: transferNote
+                    });
+                    syncSavingsEntriesFromTransfer(newTxId, fromWalletId, toWalletId, amount, date, transferSource, note);
+                    showToast('Pindah saldo tersimpan');
+                }
+
+                saveState();
+                closeTransactionModal();
+                refreshDashboard();
+                renderSavingsTab();
+                renderTransactionsList();
+                renderAccountRecap();
+                return;
+            }
+
             const rawCategory = document.getElementById('tx-category')?.value || '';
             const customCategory = toTitleCase(document.getElementById('tx-custom-category')?.value || '');
             let category = rawCategory;
@@ -1565,13 +1764,6 @@
             }
 
             const walletId = document.getElementById('tx-wallet')?.value || 'cash';
-            const date = document.getElementById('tx-date')?.value || new Date().toISOString().split('T')[0];
-            const note = (document.getElementById('tx-note')?.value || '').trim();
-
-            if (amount <= 0) {
-                showToast('Masukkan nominal yang valid');
-                return;
-            }
 
             if (editId) {
                 const idx = state.transactions.findIndex(t => t.id === editId);
@@ -1616,10 +1808,12 @@
 
         function deleteTransactionById(id) {
             state.transactions = state.transactions.filter(t => t.id !== id);
+            state.savingsEntries = state.savingsEntries.filter(s => s.linkedTransferTxId !== id);
             openMenuId = null;
             confirmDeleteId = null;
             saveState();
             refreshDashboard();
+            renderSavingsTab();
             renderTransactionsList();
             renderAccountRecap();
             showToast('Transaksi dihapus');
@@ -1687,28 +1881,44 @@
             renderDashboardCharts(filtered, fInc, fExp, cashBalance, appBalance);
 
             listEl.innerHTML = filtered.map(tx => {
-                const wallet = WALLETS.find(w => w.id === tx.walletId) || WALLETS[0];
+                const isTransfer = tx.type === 'transfer';
                 const isIncome = tx.type === 'income';
+                const fromLabel = getTransferNodeLabel(tx.fromWalletId);
+                const toLabel = getTransferNodeLabel(tx.toWalletId);
+                const wallet = isTransfer
+                    ? (WALLETS.find(w => w.id === tx.fromWalletId) || WALLETS.find(w => w.id === tx.toWalletId) || WALLETS[0])
+                    : (WALLETS.find(w => w.id === tx.walletId) || WALLETS[0]);
                 const menuKey = 'tx_' + tx.id;
                 const isMenuOpen = openMenuId === menuKey;
                 const isConfirming = confirmDeleteId === tx.id;
+                const titleText = isTransfer ? `${fromLabel} → ${toLabel}` : tx.category;
+                const subText = isTransfer
+                    ? (tx.note || tx.category || 'Pindah Saldo')
+                    : (tx.note || wallet.name);
+                const amountColor = isTransfer
+                    ? 'text-blue-600 dark:text-blue-400'
+                    : (isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400');
+                const amountPrefix = isTransfer ? '⇄ ' : (isIncome ? '+' : '-');
+                const iconHtml = isTransfer && (isSavingTransferId(tx.fromWalletId) || isSavingTransferId(tx.toWalletId))
+                    ? `<div class="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-display font-extrabold text-[10px] tracking-tight shrink-0">TAB</div>`
+                    : getWalletLogoSvg(wallet.id, 'w-8 h-8');
 
                 return `
                     <div class="relative rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800 p-3 flex items-center justify-between gap-2">
                         <div class="flex items-center gap-2.5 min-w-0">
-                            ${getWalletLogoSvg(wallet.id, 'w-8 h-8')}
+                            ${iconHtml}
                             <div class="min-w-0">
                                 <div class="flex items-center gap-1.5">
-                                    <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(tx.category)}</span>
+                                    <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(titleText)}</span>
                                     <span class="text-[10px] text-slate-400">• ${escapeHtml(tx.date)}</span>
                                 </div>
-                                <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtml(tx.note || wallet.name)}</p>
+                                <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtml(subText)}</p>
                             </div>
                         </div>
 
                         <div class="flex items-center gap-1.5 shrink-0">
-                            <span class="font-display font-bold text-xs ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
-                                ${isIncome ? '+' : '-'}${formatRupiah(tx.amount)}
+                            <span class="font-display font-bold text-xs ${amountColor}">
+                                ${amountPrefix}${formatRupiah(tx.amount)}
                             </span>
                             <button type="button" onclick="toggleRowMenu('${menuKey}', event)" class="p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-700 text-slate-500">
                                 <i data-lucide="more-vertical" class="w-4 h-4"></i>
@@ -1836,12 +2046,71 @@
         }
 
         function deleteSavingEntryById(entryId) {
+            const target = state.savingsEntries.find(item => item.id === entryId);
             state.savingsEntries = state.savingsEntries.filter(item => item.id !== entryId);
+            if (target && target.linkedTransferTxId) {
+                state.transactions = state.transactions.filter(t => t.id !== target.linkedTransferTxId);
+            }
             openMenuId = null;
             confirmDeleteId = null;
             saveState();
+            refreshDashboard();
+            renderTransactionsList();
             renderSavingsTab();
             showToast('Mutasi tabungan dihapus');
+        }
+        function isSavingTransferId(val) {
+            return String(val || '').startsWith('saving:');
+        }
+
+        function getPocketIdFromTransferId(val) {
+            return String(val || '').replace(/^saving:/, '');
+        }
+
+        function getTransferNodeLabel(nodeId) {
+            if (isSavingTransferId(nodeId)) {
+                const pocketId = getPocketIdFromTransferId(nodeId);
+                const pocket = (state && Array.isArray(state.savingsPockets))
+                    ? state.savingsPockets.find(p => p.id === pocketId)
+                    : null;
+                return pocket ? `Tabungan: ${pocket.name}` : 'Tabungan';
+            }
+            const wallet = WALLETS.find(w => w.id === nodeId);
+            return wallet ? wallet.name : 'Cash (Tunai)';
+        }
+
+        function populateSelectOptions() {
+            renderTxCategoryOptions();
+            const filterCat = document.getElementById('filter-category');
+            const txWallet = document.getElementById('tx-wallet');
+            const fromWallet = document.getElementById('tx-from-wallet');
+            const toWallet = document.getElementById('tx-to-wallet');
+
+            if (filterCat) {
+                const prev = filterCat.value || 'all';
+                const allCats = Array.from(new Set([
+                    ...getAllIncomeCategories(),
+                    ...getAllExpenseCategories(),
+                    'Tarik Tunai',
+                    'Setor Tunai',
+                    'Setor Tabungan',
+                    'Tarik Tabungan',
+                    'Pindah Tabungan',
+                    'Pindah Saldo'
+                ]));
+                filterCat.innerHTML = `<option value="all">Semua Kategori</option>` +
+                    allCats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+                filterCat.value = prev;
+            }
+            const walletOptionsHtml = WALLETS.map(w => `<option value="${escapeHtml(w.id)}">${escapeHtml(w.name)}</option>`).join('');
+            const savingOptionsHtml = (state && Array.isArray(state.savingsPockets) ? state.savingsPockets : [])
+                .map(p => `<option value="saving:${escapeHtml(p.id)}">Tabungan: ${escapeHtml(p.name)}</option>`)
+                .join('');
+            const transferOptionsHtml = `${walletOptionsHtml}${savingOptionsHtml}`;
+
+            if (txWallet) txWallet.innerHTML = walletOptionsHtml;
+            if (fromWallet) fromWallet.innerHTML = transferOptionsHtml;
+            if (toWallet) toWallet.innerHTML = transferOptionsHtml;
         }
 
         function openEditSavingEntryModal(entryId) {
@@ -1855,7 +2124,7 @@
                 pocketSelect.innerHTML = state.savingsPockets
                     .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`)
                     .join('');
-                pocketSelect.value = entry.pocketId || (state.savingsPockets[0] && state.savingsPockets[0].id) || '';
+                pocketSelect.value = entry.pocketId;
             }
 
             const idInput = document.getElementById('edit-saving-entry-id');
@@ -2708,23 +2977,51 @@
             }).join('');
         }
 
-        function populateSelectOptions() {
-            renderTxCategoryOptions();
-            const filterCat = document.getElementById('filter-category');
-            const txWallet = document.getElementById('tx-wallet');
+        function getAllIncomeCategories() {
+            const custom = (state && Array.isArray(state.transactions))
+                ? state.transactions.filter(t => t.type === 'income' && t.category).map(t => t.category)
+                : [];
+            return Array.from(new Set([...INCOME_CATEGORIES, ...custom]));
+        }
 
-            if (filterCat) {
-                const prev = filterCat.value || 'all';
-                const allCats = Array.from(new Set([
-                    ...getAllIncomeCategories(),
-                    ...getAllExpenseCategories()
-                ]));
-                filterCat.innerHTML = `<option value="all">Semua Kategori</option>` +
-                    allCats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-                filterCat.value = prev;
+        function getAllExpenseCategories() {
+            const custom = (state && Array.isArray(state.transactions))
+                ? state.transactions.filter(t => t.type === 'expense' && t.category).map(t => t.category)
+                : [];
+            return Array.from(new Set([...EXPENSE_CATEGORIES, ...custom]));
+        }
+
+        function renderTxCategoryOptions() {
+            const catSelect = document.getElementById('tx-category');
+            if (!catSelect) return;
+            const list = currentTxType === 'income' ? getAllIncomeCategories() : getAllExpenseCategories();
+            const prev = catSelect.value;
+            catSelect.innerHTML = list.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('') +
+                `<option value="${CUSTOM_CATEGORY_OPTION}">+ Ketik Sendiri...</option>`;
+            if (prev && (list.includes(prev) || prev === CUSTOM_CATEGORY_OPTION)) {
+                catSelect.value = prev;
+            } else {
+                catSelect.value = list[0] || '';
             }
-            if (txWallet) {
-                txWallet.innerHTML = WALLETS.map(w => `<option value="${escapeHtml(w.id)}">${escapeHtml(w.name)}</option>`).join('');
+            handleTxCategoryChange();
+        }
+
+        function handleTxCategoryChange() {
+            const catSelect = document.getElementById('tx-category');
+            const customBox = document.getElementById('tx-custom-category-box');
+            const customInput = document.getElementById('tx-custom-category');
+            const customLabel = document.getElementById('tx-custom-category-label');
+            if (!catSelect || !customBox) return;
+
+            const isCustom = catSelect.value === CUSTOM_CATEGORY_OPTION && currentTxType !== 'transfer';
+            customBox.classList.toggle('hidden', !isCustom);
+            if (isCustom && customLabel && customInput) {
+                customLabel.textContent = currentTxType === 'income'
+                    ? 'Ketik Nama Kategori Uang Masuk'
+                    : 'Ketik Nama Kategori Uang Keluar';
+                customInput.placeholder = currentTxType === 'income'
+                    ? 'Contoh: Freelance, Komisi, Dividen...'
+                    : 'Contoh: Parkir, Pulsa, Service...';
             }
         }
 
